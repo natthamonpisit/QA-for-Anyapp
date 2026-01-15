@@ -10,11 +10,11 @@ export default function App() {
   
   // Bridge Github logic to QA Logic (Code Import)
   const gh = useGithubBrowser((content) => {
-      qa.actions.appendCode(content);
+      qa.actions.setCode(content); // Use setCode instead of append for clean start
   });
 
   if (qa.state.currentView === 'ONBOARDING') {
-    return <OnboardingView gh={gh} onProceed={() => qa.actions.setView('DASHBOARD')} />;
+    return <OnboardingView gh={gh} qa={qa} onProceed={() => qa.actions.setView('DASHBOARD')} />;
   }
 
   return <DashboardView qa={qa} gh={gh} />;

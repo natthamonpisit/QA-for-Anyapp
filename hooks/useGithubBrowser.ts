@@ -9,22 +9,20 @@ export const useGithubBrowser = (onFilesImported: (content: string) => void) => 
   const [isConnected, setIsConnected] = useState(false);
   const [userRepos, setUserRepos] = useState<GithubService.GithubRepo[]>([]);
   
-  const [currentPath, setCurrentPath] = useState('');
-  const [files, setFiles] = useState<GithubService.GithubFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showBrowser, setShowBrowser] = useState(false);
-  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   const connect = async () => {
     if (!githubToken) return alert("Enter Token");
     setIsLoading(true);
+    setLoadingMessage("Authenticating...");
     try {
         const repos = await GithubService.fetchUserRepos(githubToken);
         setUserRepos(repos);
         setIsConnected(true);
         setIsTokenMode(false);
     } catch (e: any) { alert(e.message); }
-    finally { setIsLoading(false); }
+    finally { setIsLoading(false); setLoadingMessage(''); }
   };
 
   const disconnect = () => {
@@ -32,71 +30,45 @@ export const useGithubBrowser = (onFilesImported: (content: string) => void) => 
     setGithubToken('');
     setUserRepos([]);
     setRepoInput('');
-    setFiles([]);
-    setSelectedPaths(new Set());
   };
 
-  const fetchRepo = async (name?: string) => {
-    const target = name || repoInput;
-    if (!target) return;
-    if (name) setRepoInput(name);
-    
-    setIsLoading(true);
-    setCurrentPath('');
-    setSelectedPaths(new Set());
-    try {
-        const f = await GithubService.fetchRepoContents(target, '', isConnected ? githubToken : undefined);
-        setFiles(f);
-        setShowBrowser(true);
-    } catch (e: any) { alert(e.message); }
-    finally { setIsLoading(false); }
+  const autoClone = async (repo: GithubService.GithubRepo) => {
+      setRepoInput(repo.full_name);
+      setIsLoading(true);
+      setLoadingMessage("Analyzing repository structure...");
+      try {
+          const content = await GithubService.cloneRepoValues(
+              repo, 
+              isConnected ? githubToken : undefined,
+              (msg) => setLoadingMessage(msg)
+          );
+          onFilesImported(content);
+      } catch (e: any) {
+          alert("Failed to clone: " + e.message);
+      } finally {
+          setIsLoading(false);
+          setLoadingMessage('');
+      }
   };
 
-  const navigate = async (path: string) => {
-    setIsLoading(true);
-    try {
-        const f = await GithubService.fetchRepoContents(repoInput, path, isConnected ? githubToken : undefined);
-        setFiles(f);
-        setCurrentPath(path);
-    } catch (e: any) { alert(e.message); }
-    finally { setIsLoading(false); }
-  };
-
-  const toggleSelection = (file: GithubService.GithubFile) => {
-    if (file.type === 'dir') return;
-    const newSet = new Set(selectedPaths);
-    if (newSet.has(file.path)) newSet.delete(file.path);
-    else newSet.add(file.path);
-    setSelectedPaths(newSet);
-  };
-
-  const importSelected = async () => {
-    if (selectedPaths.size === 0) return;
-    setIsLoading(true);
-    let buffer = '';
-    try {
-        for (const path of Array.from(selectedPaths)) {
-            const file = files.find(f => f.path === path);
-            if (file) {
-                const content = await GithubService.fetchFileContent(repoInput, file.sha, isConnected ? githubToken : undefined);
-                buffer += `// === FILE: ${file.path} ===\n${content}\n\n`;
-            }
-        }
-        onFilesImported(buffer);
-        setSelectedPaths(new Set());
-        // Don't close browser automatically if we are in onboarding, handled by parent
-    } catch (e: any) { alert(e.message); }
-    finally { setIsLoading(false); }
-  };
+  // Keep these for backward compatibility or direct usage if needed, but simplified
+  const fetchRepo = async () => {}; 
+  const navigate = async () => {};
+  const toggleSelection = () => {};
+  const importSelected = async () => {};
 
   return {
     state: {
       repoInput, githubToken, isTokenMode, isConnected, userRepos,
-      currentPath, files, isLoading, showBrowser, selectedPaths
+      isLoading, loadingMessage, 
+      // Legacy props to satisfy interface if needed, or empty
+      files: [], currentPath: '', showBrowser: false, selectedPaths: new Set()
     },
     actions: {
-      setRepoInput, setGithubToken, setIsTokenMode, setShowBrowser,
-      connect, disconnect, fetchRepo, navigate, toggleSelection, importSelected
+      setRepoInput, setGithubToken, setIsTokenMode,
+      connect, disconnect, 
+      autoClone, // The new main action
+      fetchRepo, navigate, toggleSelection, importSelected, setShowBrowser: () => {}
     }
   };
 };

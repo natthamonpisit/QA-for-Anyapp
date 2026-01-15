@@ -1,3 +1,4 @@
+
 // Function to interact with GitHub API
 
 export interface GithubFile {
@@ -16,6 +17,7 @@ export interface GithubRepo {
   private: boolean;
   description: string | null;
   updated_at: string;
+  default_branch: string;
 }
 
 const BASE_URL = 'https://api.github.com';
@@ -54,43 +56,7 @@ export const fetchUserRepos = async (token: string): Promise<GithubRepo[]> => {
 };
 
 /**
- * Fetches the content of a specific path in a repository.
- * If path is empty, it fetches the root directory.
- */
-export const fetchRepoContents = async (repoFullName: string, path: string = '', token?: string): Promise<GithubFile[]> => {
-  // repoFullName example: "owner/repo"
-  try {
-    const response = await fetch(`${BASE_URL}/repos/${repoFullName}/contents/${path}`, {
-       headers: getHeaders(token)
-    });
-    
-    if (!response.ok) {
-      if (response.status === 404) throw new Error("Repository or path not found.");
-      if (response.status === 403) throw new Error("Access Denied or Rate limit exceeded.");
-      if (response.status === 401) throw new Error("Unauthorized (Check Token).");
-      throw new Error(`GitHub API Error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // Ensure we return an array (API returns object for single file, array for dir)
-    if (Array.isArray(data)) {
-        // Sort: Directories first, then files
-        return data.sort((a: GithubFile, b: GithubFile) => {
-            if (a.type === b.type) return a.name.localeCompare(b.name);
-            return a.type === 'dir' ? -1 : 1;
-        });
-    }
-    return [data];
-  } catch (error) {
-    console.error("GitHub Fetch Error:", error);
-    throw error;
-  }
-};
-
-/**
  * Fetches the raw text content of a file.
- * Uses the API blob endpoint to avoid CORS issues sometimes associated with raw.githubusercontent.com
  */
 export const fetchFileContent = async (repoFullName: string, sha: string, token?: string): Promise<string> => {
     try {
@@ -106,4 +72,64 @@ export const fetchFileContent = async (repoFullName: string, sha: string, token?
         console.error("File Content Error:", error);
         throw error;
     }
+};
+
+/**
+ * NEW: Fetches the Git Tree recursively to get all files, then downloads relevant source code.
+ */
+export const cloneRepoValues = async (repo: GithubRepo, token?: string, onProgress?: (msg: string) => void): Promise<string> => {
+  try {
+    if (onProgress) onProgress("Fetching file tree...");
+    
+    // 1. Get the Tree
+    const branch = repo.default_branch || 'main';
+    const treeResponse = await fetch(`${BASE_URL}/repos/${repo.full_name}/git/trees/${branch}?recursive=1`, {
+      headers: getHeaders(token)
+    });
+
+    if (!treeResponse.ok) throw new Error("Failed to fetch repository tree");
+    const treeData = await treeResponse.json();
+
+    if (treeData.truncated) {
+      if (onProgress) onProgress("Warning: Repo is too large, some files were truncated.");
+    }
+
+    // 2. Filter relevant files
+    const relevantExtensions = ['.ts', '.tsx', '.js', '.jsx', '.css', '.html', '.json', '.md', '.py', '.go', '.rs'];
+    const ignorePaths = ['node_modules', 'dist', 'build', '.git', 'package-lock.json', 'yarn.lock'];
+
+    const targetFiles = treeData.tree.filter((node: any) => {
+        if (node.type !== 'blob') return false; // files only
+        const isRelevantExt = relevantExtensions.some(ext => node.path.endsWith(ext));
+        const isIgnored = ignorePaths.some(ignore => node.path.includes(ignore));
+        return isRelevantExt && !isIgnored;
+    }).slice(0, 40); // LIMIT to 40 files for the demo/context window safety
+
+    // 3. Download Contents
+    let fullCode = '';
+    let count = 0;
+
+    // Parallel fetch with concurrency limit (simple batching)
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < targetFiles.length; i += BATCH_SIZE) {
+        const batch = targetFiles.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(batch.map(async (file: any) => {
+             try {
+                 const content = await fetchFileContent(repo.full_name, file.sha, token);
+                 return `// === FILE: ${file.path} ===\n${content}\n\n`;
+             } catch (e) {
+                 return `// === FILE: ${file.path} (Load Error) ===\n\n`;
+             }
+        }));
+        fullCode += results.join('');
+        count += batch.length;
+        if (onProgress) onProgress(`Downloaded ${count}/${targetFiles.length} files...`);
+    }
+
+    return fullCode;
+
+  } catch (error) {
+    console.error("Clone Error:", error);
+    throw error;
+  }
 };

@@ -39,9 +39,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
         <div className="flex items-center gap-4">
            <button onClick={() => { if(window.confirm("Clear?")) { qaActions.clearSession(); ghActions.disconnect(); } }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition-colors" title="Clear Session"><Trash2 className="w-4 h-4" /></button>
 
-          <button onClick={qaActions.startAnalysis} disabled={qaState.isProcessing || !process.env.API_KEY} className={`flex items-center gap-2 px-6 py-2.5 rounded-md font-medium transition-all shadow-lg ${qaState.isProcessing ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
+          <button onClick={qaActions.startMission} disabled={qaState.isProcessing || !process.env.API_KEY} className={`flex items-center gap-2 px-6 py-2.5 rounded-md font-medium transition-all shadow-lg ${qaState.isProcessing ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
             {qaState.isProcessing ? <RotateCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-            {qaState.isProcessing ? 'Working...' : 'Start Cycle'}
+            {qaState.isProcessing ? 'Working...' : 'Resume QA'}
           </button>
         </div>
       </header>
