@@ -18,7 +18,10 @@ const defaultState: AppState = {
   maxCycles: CONFIG.MAX_CYCLES,
   workflowStep: 'IDLE',
   currentView: 'ONBOARDING',
-  cloudinaryConfig: { cloudName: '', uploadPreset: '' },
+  cloudinaryConfig: { 
+    cloudName: CONFIG.CLOUDINARY_CLOUD_NAME, 
+    uploadPreset: CONFIG.CLOUDINARY_PRESET 
+  },
   sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`
 };
 
@@ -105,7 +108,9 @@ export const useQAWorkflow = () => {
                     ...defaultState, 
                     ...parsed, 
                     isProcessing: false,
-                    workflowStep: parsed.workflowStep === 'TESTING' ? 'IDLE' : parsed.workflowStep
+                    workflowStep: parsed.workflowStep === 'TESTING' ? 'IDLE' : parsed.workflowStep,
+                    // Ensure cloud config is loaded or defaults to new config if missing
+                    cloudinaryConfig: parsed.cloudinaryConfig?.cloudName ? parsed.cloudinaryConfig : defaultState.cloudinaryConfig
                 } 
             });
         }
