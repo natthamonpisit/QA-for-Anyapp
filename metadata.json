@@ -1,0 +1,5 @@
+{
+  "name": "QA for Anyapp",
+  "description": "Multi-Agent AI QA System that automates testing, fixing, and regression cycles based on strict logical constraints.",
+  "requestFramePermissions": []
+}
