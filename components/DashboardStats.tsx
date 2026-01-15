@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Task, TaskStatus } from '../types';
-import { CheckCircle, XCircle, Activity, Layers, Bug, Zap } from 'lucide-react';
+import { CheckCircle, XCircle, Activity, Layers, Bug, PieChart } from 'lucide-react';
 
 interface DashboardStatsProps {
   tasks: Task[];
@@ -12,60 +12,60 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ tasks, currentCycle }) 
   const total = tasks.length;
   const passed = tasks.filter(t => t.status === TaskStatus.PASSED).length;
   const failed = tasks.filter(t => t.status === TaskStatus.FAILED).length;
-  
   const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
-      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300">
-        <div>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">ความครอบคลุม</p>
-          <div className="flex items-baseline gap-2">
-             <h3 className="text-2xl font-bold text-white font-mono">{total}</h3>
-             <span className="text-xs text-slate-500">เคสทดสอบ</span>
-          </div>
+    <div className="flex flex-wrap md:flex-nowrap items-center gap-4 bg-slate-900/50 border border-slate-800 rounded-xl p-2 px-4 shadow-lg backdrop-blur-md">
+      {/* Stat 1: Total Tasks */}
+      <div className="flex items-center gap-3 pr-4 border-r border-slate-700/50 min-w-[120px]">
+        <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-400">
+           <Layers className="w-4 h-4" />
         </div>
-        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/20 group-hover:text-blue-400 text-slate-500 transition-colors">
-          <Layers className="w-5 h-5" />
+        <div>
+           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Tasks</span>
+           <span className="text-sm font-bold text-white font-mono leading-none">{total}</span>
         </div>
       </div>
 
-      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300 border-l-4 border-l-green-500/50">
-        <div>
-          <p className="text-green-500/70 text-[10px] font-bold uppercase tracking-widest mb-1">อัตราสำเร็จ</p>
-          <div className="flex items-baseline gap-2">
-             <h3 className="text-2xl font-bold text-slate-100 font-mono">{passRate}%</h3>
-             <span className="text-xs text-green-500/60 font-medium">({passed})</span>
-          </div>
+      {/* Stat 2: Success Rate */}
+      <div className="flex items-center gap-3 pr-4 border-r border-slate-700/50 min-w-[120px]">
+        <div className="p-1.5 bg-green-500/10 rounded-lg text-green-400">
+           <PieChart className="w-4 h-4" />
         </div>
-        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-green-500/20 group-hover:text-green-400 text-slate-500 transition-colors">
-          <CheckCircle className="w-5 h-5" />
+        <div>
+           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Success Rate</span>
+           <div className="flex items-baseline gap-1.5">
+               <span className="text-sm font-bold text-white font-mono leading-none">{passRate}%</span>
+               <span className="text-[10px] text-green-500">({passed})</span>
+           </div>
         </div>
       </div>
 
-      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300 border-l-4 border-l-red-500/50">
-        <div>
-          <p className="text-red-500/70 text-[10px] font-bold uppercase tracking-widest mb-1">ข้อผิดพลาด</p>
-          <div className="flex items-baseline gap-2">
-             <h3 className="text-2xl font-bold text-slate-100 font-mono">{failed}</h3>
-             <span className="text-xs text-slate-500">รายการ</span>
-          </div>
+      {/* Stat 3: Defects */}
+      <div className="flex items-center gap-3 pr-4 border-r border-slate-700/50 min-w-[120px]">
+        <div className={`p-1.5 rounded-lg ${failed > 0 ? 'bg-red-500/10 text-red-400' : 'bg-slate-800 text-slate-600'}`}>
+           <Bug className="w-4 h-4" />
         </div>
-        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-red-500/20 group-hover:text-red-400 text-slate-500 transition-colors">
-          <Bug className="w-5 h-5" />
+        <div>
+           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Defects</span>
+           <span className={`text-sm font-bold font-mono leading-none ${failed > 0 ? 'text-red-400' : 'text-slate-400'}`}>{failed}</span>
         </div>
       </div>
 
-      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300 bg-gradient-to-br from-purple-900/10 to-transparent">
-        <div>
-          <p className="text-purple-400/70 text-[10px] font-bold uppercase tracking-widest mb-1">รอบการทำงาน</p>
-          <div className="flex items-baseline gap-2">
-             <h3 className="text-2xl font-bold text-slate-100 font-mono">#{currentCycle}</h3>
-             <span className="text-xs text-purple-500 font-medium animate-pulse">Running</span>
-          </div>
+      {/* Stat 4: Cycle */}
+      <div className="flex items-center gap-3 min-w-[120px] ml-auto">
+        <div className="p-1.5 bg-purple-500/10 rounded-lg text-purple-400">
+           <Activity className="w-4 h-4" />
         </div>
-        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-purple-500/20 group-hover:text-purple-400 text-slate-500 transition-colors">
-          <Activity className="w-5 h-5" />
+        <div>
+           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Cycle</span>
+           <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white font-mono leading-none">#{currentCycle}</span>
+                <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                </span>
+           </div>
         </div>
       </div>
     </div>

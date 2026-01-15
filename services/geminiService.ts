@@ -124,9 +124,9 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
 
 /**
  * 3. TESTER AGENT (Uses Smart Context & Data Mocking)
- * Updated: เพิ่มคำสั่งให้ AI Mock Data (เช่น รูปภาพ, API Response) เองได้
+ * Updated: Return 'executionLogs' array to visualize steps.
  */
-export const executeTestSimulation = async (fullCode: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string }> => {
+export const executeTestSimulation = async (fullCode: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string; executionLogs: string[] }> => {
   const ai = getAI();
   
   // Apply Smart Context (Point A)
@@ -146,14 +146,20 @@ export const executeTestSimulation = async (fullCode: string, task: Task, curren
 
     Instructions:
     1. **MOCK DATA**: If the task involves user input (e.g., uploading a file, filling a form), IMAGINE you created a valid mock object.
-       - Example: If testing photo upload, assume you created 'const mockFile = { name: "test.jpg", type: "image/jpeg", size: 1024 }'.
-    2. **MOCK API**: If the code calls an external API (like Cloudinary, Firebase), DO NOT fail because you cannot reach the internet. 
-       - Assume the API returns a standard Success (200 OK) or Error (400/500) based on what you are testing.
-    3. **SIMULATE LOGIC**: Trace the code execution flow step-by-step using these mock inputs.
-    4. **VALIDATE**: compare the simulated outcome with the Expected Result.
+    2. **SIMULATE LOGIC**: Trace the code execution flow step-by-step using these mock inputs.
+    3. **GENERATE LOGS**: Record specific technical steps you took during simulation (e.g., "Found element #btn", "Dispatched Click Event", "Received API 200").
 
     Output JSON:
-    { "passed": boolean, "reason": "Technical explanation in Thai (Mention what data was mocked)" }
+    { 
+      "passed": boolean, 
+      "reason": "Technical explanation in Thai",
+      "executionLogs": [
+         "Mocking user session...",
+         "Mounting component <App/>...",
+         "Checking condition if (loading)...",
+         "Result: Loading state visible."
+      ]
+    }
   `;
 
   const response = await ai.models.generateContent({
@@ -163,9 +169,9 @@ export const executeTestSimulation = async (fullCode: string, task: Task, curren
   });
 
   try {
-    return JSON.parse(response.text || '{ "passed": false, "reason": "AI Error" }');
+    return JSON.parse(response.text || '{ "passed": false, "reason": "AI Error", "executionLogs": [] }');
   } catch (e) {
-    return { passed: false, reason: "ไม่สามารถประมวลผลการทดสอบได้" };
+    return { passed: false, reason: "ไม่สามารถประมวลผลการทดสอบได้", executionLogs: ["Error parsing AI response"] };
   }
 };
 

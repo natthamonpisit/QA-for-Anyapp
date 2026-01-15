@@ -344,12 +344,14 @@ export const useQAWorkflow = () => {
       try {
         const result = await GeminiService.executeTestSimulation(state.codeContext, task, state.progressReport);
         if (result.passed) {
-          dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.PASSED, resultLog: result.reason } } });
+          // Point C: Store executionLogs in state
+          dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.PASSED, resultLog: result.reason, executionLogs: result.executionLogs } } });
           addLog(AgentRole.TESTER, `[PASSED] ${task.id}`, 'success');
           await updateReport("TEST_PASS", `Task ${task.id}: ${result.reason}`);
         } else {
           failureCount++;
-          dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.FAILED, failureReason: result.reason } } });
+          // Point C: Store executionLogs in state
+          dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.FAILED, failureReason: result.reason, executionLogs: result.executionLogs } } });
           addLog(AgentRole.TESTER, `[FAILED] ${task.id}`, 'error');
           await updateReport("TEST_FAIL", `Task ${task.id}: ${result.reason}`);
         }

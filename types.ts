@@ -23,6 +23,7 @@ export interface Task {
   fixSuggestion?: string;
   relatedFiles?: string[]; // Point A: Identify relevant files for context optimization
   prUrl?: string;          // Point B: Link to the created Pull Request
+  executionLogs?: string[]; // Point C: Detailed step-by-step logs from the AI Simulation
 }
 
 export interface LogEntry {
