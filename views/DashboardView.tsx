@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search, LogOut, Save, Check, Github, X, ChevronDown, ChevronUp, LayoutDashboard, Maximize2, Minimize2 } from 'lucide-react';
+import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search, LogOut, Save, Check, Github, X, ChevronDown, ChevronUp, LayoutDashboard, Maximize2, Minimize2, Terminal } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import TaskList from '../components/TaskList';
 import ActiveTaskMonitor from '../components/ActiveTaskMonitor';
 import AgentLog from '../components/AgentLog';
 import ProgressReport from '../components/ProgressReport';
 import FileBrowser from '../components/FileBrowser';
+import DebugConsole from '../components/DebugConsole';
 
 interface DashboardViewProps {
   qa: any; // Hook types
@@ -131,6 +132,15 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
            
            <div className="h-5 w-px bg-slate-800 mx-1"></div>
 
+           {/* Debug Toggle */}
+           <button 
+             onClick={qaActions.toggleDebugConsole}
+             className={`p-1.5 rounded-md transition-all border ${qaState.showDebugConsole ? 'bg-purple-900/30 border-purple-500 text-purple-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+             title="Toggle Debug Console"
+           >
+              <Terminal className="w-3.5 h-3.5" />
+           </button>
+
           <button onClick={qaActions.startMission} disabled={qaState.isProcessing || !process.env.API_KEY} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide transition-all shadow-lg ${qaState.isProcessing ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
             {qaState.isProcessing ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
             {qaState.isProcessing ? 'Running...' : 'Start QA'}
@@ -139,7 +149,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
       </header>
 
       {/* 2. Main Content Grid (Single Page) */}
-      <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+      <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden relative">
         
         {/* Stats Row */}
         <div className="shrink-0">
@@ -232,6 +242,15 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
             </div>
 
         </div>
+
+        {/* Debug Console Overlay */}
+        <DebugConsole 
+            isOpen={qaState.showDebugConsole} 
+            onClose={qaActions.toggleDebugConsole}
+            logs={qaState.logs}
+            state={qaState}
+            onClearLogs={qaActions.clearLogs}
+        />
       </div>
     </div>
   );

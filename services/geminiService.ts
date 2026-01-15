@@ -32,7 +32,8 @@ const extractRelatedCode = (fullCode: string, filePaths: string[]): string => {
         
         // Check if this file is in our requested list
         // Partial match allows flexibility (e.g. "utils.ts" matches "src/utils.ts")
-        const isRelated = filePaths.some(p => fileName.includes(p));
+        // CRITICAL FIX: Add check for fileName existence and validity
+        const isRelated = fileName && filePaths.some(p => p && fileName.includes(p));
         
         if (isRelated) {
             filteredCode += `// === FILE: ${fileName} ===\n${lines.slice(1).join('\n')}`;

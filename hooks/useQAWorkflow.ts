@@ -24,7 +24,8 @@ const defaultState: AppState = {
     uploadPreset: CONFIG.CLOUDINARY_PRESET 
   },
   sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`,
-  repoCatalog: [] 
+  repoCatalog: [],
+  showDebugConsole: false
 };
 
 // --- Reducer ---
@@ -33,6 +34,7 @@ type Action =
   | { type: 'SET_CODE'; payload: string }
   | { type: 'APPEND_CODE'; payload: string }
   | { type: 'ADD_LOG'; payload: Omit<LogEntry, 'id' | 'timestamp'> }
+  | { type: 'CLEAR_LOGS' }
   | { type: 'SET_STEP'; payload: AppState['workflowStep'] }
   | { type: 'SET_SUMMARY'; payload: string }
   | { type: 'SET_TASKS'; payload: Task[] }
@@ -47,7 +49,8 @@ type Action =
   | { type: 'RESTORE_STATE'; payload: AppState }
   | { type: 'SAVE_TO_CATALOG'; payload: RepoCatalogItem }
   | { type: 'SNAPSHOT_TO_CATALOG' } 
-  | { type: 'LOAD_SESSION'; payload: Partial<AppState> }; 
+  | { type: 'LOAD_SESSION'; payload: Partial<AppState> }
+  | { type: 'TOGGLE_DEBUG_CONSOLE' };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -66,6 +69,8 @@ function reducer(state: AppState, action: Action): AppState {
           ...action.payload 
         }],
       };
+    case 'CLEAR_LOGS':
+        return { ...state, logs: [] };
     case 'SET_STEP':
       return { ...state, workflowStep: action.payload, isProcessing: action.payload !== 'IDLE' && action.payload !== 'COMPLETED' };
     case 'SET_SUMMARY':
@@ -151,6 +156,8 @@ function reducer(state: AppState, action: Action): AppState {
         };
     case 'RESTORE_STATE':
         return action.payload;
+    case 'TOGGLE_DEBUG_CONSOLE':
+        return { ...state, showDebugConsole: !state.showDebugConsole };
     default:
       return state;
   }
@@ -171,7 +178,8 @@ export const useQAWorkflow = () => {
                 payload: { 
                     ...defaultState, 
                     repoCatalog: parsed.repoCatalog || [], 
-                    cloudinaryConfig: parsed.cloudinaryConfig?.cloudName ? parsed.cloudinaryConfig : defaultState.cloudinaryConfig
+                    cloudinaryConfig: parsed.cloudinaryConfig?.cloudName ? parsed.cloudinaryConfig : defaultState.cloudinaryConfig,
+                    showDebugConsole: parsed.showDebugConsole || false
                 } 
             });
         }
@@ -188,8 +196,27 @@ export const useQAWorkflow = () => {
     return () => clearTimeout(timeout);
   }, [state]);
 
-  const addLog = (role: AgentRole, message: string, type: 'info'|'success'|'error'|'warning' = 'info') => {
-    dispatch({ type: 'ADD_LOG', payload: { role, message, type } });
+  // Enhanced Log Function
+  const addLog = (
+      role: AgentRole, 
+      message: string, 
+      type: 'info'|'success'|'error'|'warning' = 'info',
+      source?: string,
+      details?: any
+  ) => {
+    dispatch({ type: 'ADD_LOG', payload: { role, message, type, source, details } });
+  };
+  
+  const clearLogs = () => dispatch({ type: 'CLEAR_LOGS' });
+
+  // Error Handler Helper
+  const reportError = (source: string, message: string, error: any) => {
+      console.error(`[${source}] ${message}`, error);
+      addLog(AgentRole.SYSTEM, message, 'error', source, {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+      });
   };
 
   const updateReport = async (action: string, detail: string) => {
@@ -207,33 +234,34 @@ export const useQAWorkflow = () => {
   const appendCode = (code: string) => dispatch({ type: 'APPEND_CODE', payload: code });
   const setView = (view: AppState['currentView']) => dispatch({ type: 'SET_VIEW', payload: view });
   const setCloudConfig = (config: CloudinaryConfig) => dispatch({ type: 'SET_CLOUD_CONFIG', payload: config });
+  const toggleDebugConsole = () => dispatch({ type: 'TOGGLE_DEBUG_CONSOLE' });
   
   const handleCloudUpload = async (manual: boolean = false, currentReportContent?: string) => {
       const content = currentReportContent || state.progressReport;
       if (!content.trim()) return alert("No report to upload.");
-      addLog(AgentRole.QA_LEAD, "Uploading Progress Report...", 'info');
+      addLog(AgentRole.QA_LEAD, "Uploading Progress Report...", 'info', 'CloudinaryService');
       try {
           const url = await CloudinaryService.uploadReport(content, state.cloudinaryConfig);
-          addLog(AgentRole.QA_LEAD, `Report Uploaded: ${url}`, 'success');
+          addLog(AgentRole.QA_LEAD, `Report Uploaded: ${url}`, 'success', 'CloudinaryService');
           if (manual) window.open(url, '_blank');
       } catch (error: any) {
-          addLog(AgentRole.QA_LEAD, `Upload Failed: ${error.message}`, 'error');
+          reportError('CloudinaryService', 'Upload Failed', error);
       }
   };
 
   const handleLogUpload = async () => {
       if (state.logs.length === 0) return alert("No logs to upload.");
-      addLog(AgentRole.QA_LEAD, "Exporting System Logs...", 'info');
+      addLog(AgentRole.QA_LEAD, "Exporting System Logs...", 'info', 'CloudinaryService');
       const logContent = state.logs.map(log => {
           const time = new Date(log.timestamp).toISOString();
-          return `[${time}] [${log.role}] ${log.type.toUpperCase()}: ${log.message}`;
+          return `[${time}] [${log.source || log.role}] ${log.type.toUpperCase()}: ${log.message}`;
       }).join('\n');
       try {
           const url = await CloudinaryService.uploadFile(logContent, state.cloudinaryConfig, `qa_logs_${Date.now()}.txt`, 'text/plain');
-          addLog(AgentRole.QA_LEAD, `Logs Exported Successfully: ${url}`, 'success');
+          addLog(AgentRole.QA_LEAD, `Logs Exported Successfully: ${url}`, 'success', 'CloudinaryService');
           window.open(url, '_blank');
       } catch (error: any) {
-          addLog(AgentRole.QA_LEAD, `Log Export Failed: ${error.message}`, 'error');
+          reportError('CloudinaryService', 'Log Export Failed', error);
       }
   };
 
@@ -243,10 +271,9 @@ export const useQAWorkflow = () => {
     if (!task || !task.fixSuggestion) return alert("No fix available");
     if (!token) return alert("GitHub Token Required");
 
-    addLog(AgentRole.FIXER, `Initiating PR Workflow for ${taskId}...`, 'info');
+    addLog(AgentRole.FIXER, `Initiating PR Workflow for ${taskId}...`, 'info', 'GithubService');
     
     // Parse Filename from Fix Suggestion
-    // Expect format: "FILENAME: path/to/file \n code..."
     const lines = task.fixSuggestion.split('\n');
     let filePath = '';
     let content = '';
@@ -255,7 +282,6 @@ export const useQAWorkflow = () => {
         filePath = lines[0].replace('FILENAME:', '').trim();
         content = lines.slice(1).join('\n');
     } else {
-        // Fallback or guess
         filePath = task.relatedFiles?.[0] || 'unknown_file.ts';
         content = task.fixSuggestion;
     }
@@ -270,11 +296,11 @@ export const useQAWorkflow = () => {
        );
        
        dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, updates: { prUrl } } });
-       addLog(AgentRole.FIXER, `PR Created Successfully: ${prUrl}`, 'success');
+       addLog(AgentRole.FIXER, `PR Created Successfully: ${prUrl}`, 'success', 'GithubService');
        window.open(prUrl, '_blank');
 
     } catch (e: any) {
-       addLog(AgentRole.FIXER, `PR Failed: ${e.message}`, 'error');
+       reportError('GithubService', `PR Workflow Failed for ${taskId}`, e);
     }
   };
 
@@ -282,17 +308,23 @@ export const useQAWorkflow = () => {
     const codeToAnalyze = providedCode || state.codeContext;
     const activeRepoName = repoName || state.currentRepoName || 'Unknown Repository';
 
-    if (!process.env.API_KEY) return alert("API_KEY missing");
-    if (!codeToAnalyze.trim()) return alert("No code context");
+    if (!process.env.API_KEY) {
+        reportError('GeminiService', 'API Key Missing', new Error('process.env.API_KEY is undefined'));
+        return alert("API_KEY missing");
+    }
+    if (!codeToAnalyze.trim()) {
+        reportError('Workflow', 'No Code Context', new Error('Code context is empty'));
+        return alert("No code context");
+    }
 
     dispatch({ type: 'RESET_CYCLE' });
     dispatch({ type: 'SET_STEP', payload: 'ANALYZING' });
-    addLog(AgentRole.ARCHITECT, `Initiating Analysis for ${activeRepoName}...`, 'info');
+    addLog(AgentRole.ARCHITECT, `Initiating Analysis for ${activeRepoName}...`, 'info', 'GeminiService');
     
     try {
       const summary = await GeminiService.analyzeCode(codeToAnalyze);
       dispatch({ type: 'SET_SUMMARY', payload: summary });
-      addLog(AgentRole.ARCHITECT, "Structural Summary Completed.", 'success');
+      addLog(AgentRole.ARCHITECT, "Structural Summary Completed.", 'success', 'GeminiService');
       
       const lines = summary.split('\n');
       const titleLine = lines.find(l => l.trim().startsWith('# '));
@@ -312,8 +344,8 @@ export const useQAWorkflow = () => {
           }
       });
       dispatch({ type: 'SET_STEP', payload: 'IDLE' }); 
-    } catch (error) {
-      addLog(AgentRole.ARCHITECT, "Analysis Failed.", 'error');
+    } catch (error: any) {
+      reportError('GeminiService', 'Code Analysis Failed', error);
       dispatch({ type: 'FINISH_PROCESSING' });
     }
   };
@@ -321,22 +353,22 @@ export const useQAWorkflow = () => {
   const startMission = async () => {
       if (!state.functionSummary) return alert("Please run analysis first.");
       dispatch({ type: 'SET_STEP', payload: 'PLANNING' });
-      addLog(AgentRole.QA_LEAD, "Mission Started. Generating Test Matrix...", 'info');
+      addLog(AgentRole.QA_LEAD, "Mission Started. Generating Test Matrix...", 'info', 'GeminiService');
 
       try {
         const tasks = await GeminiService.createTestPlan(state.codeContext, state.functionSummary, state.progressReport);
         dispatch({ type: 'SET_TASKS', payload: tasks });
-        addLog(AgentRole.QA_LEAD, `Plan Approved: ${tasks.length} test scenarios.`, 'success');
+        addLog(AgentRole.QA_LEAD, `Plan Approved: ${tasks.length} test scenarios.`, 'success', 'GeminiService');
         await startExecution(tasks);
-      } catch (error) {
-        addLog(AgentRole.QA_LEAD, "Mission Aborted during planning.", 'error');
+      } catch (error: any) {
+        reportError('GeminiService', 'Test Planning Failed', error);
         dispatch({ type: 'FINISH_PROCESSING' });
       }
   };
 
   const startExecution = async (tasksToRun: Task[]) => {
     dispatch({ type: 'SET_STEP', payload: 'TESTING' });
-    addLog(AgentRole.TESTER, "Executing Test Protocol...", 'info');
+    addLog(AgentRole.TESTER, "Executing Test Protocol...", 'info', 'GeminiService');
     let failureCount = 0;
     
     for (const task of tasksToRun) {
@@ -344,26 +376,27 @@ export const useQAWorkflow = () => {
       try {
         const result = await GeminiService.executeTestSimulation(state.codeContext, task, state.progressReport);
         if (result.passed) {
-          // Point C: Store executionLogs in state
           dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.PASSED, resultLog: result.reason, executionLogs: result.executionLogs } } });
-          addLog(AgentRole.TESTER, `[PASSED] ${task.id}`, 'success');
+          addLog(AgentRole.TESTER, `[PASSED] ${task.id}`, 'success', 'GeminiService');
           await updateReport("TEST_PASS", `Task ${task.id}: ${result.reason}`);
         } else {
           failureCount++;
-          // Point C: Store executionLogs in state
           dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.FAILED, failureReason: result.reason, executionLogs: result.executionLogs } } });
-          addLog(AgentRole.TESTER, `[FAILED] ${task.id}`, 'error');
+          addLog(AgentRole.TESTER, `[FAILED] ${task.id}`, 'error', 'GeminiService');
           await updateReport("TEST_FAIL", `Task ${task.id}: ${result.reason}`);
         }
-      } catch (e) { addLog(AgentRole.TESTER, `Task ${task.id}: ERROR`, 'error'); }
+      } catch (e: any) { 
+          reportError('GeminiService', `Task Execution Error: ${task.id}`, e);
+          dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.FAILED, failureReason: 'System Error during execution' } } });
+      }
       await new Promise(r => setTimeout(r, 200)); 
     }
 
     if (failureCount > 0) {
-      addLog(AgentRole.QA_LEAD, `${failureCount} defects detected. Engaging Fixer Agent.`, 'warning');
+      addLog(AgentRole.QA_LEAD, `${failureCount} defects detected. Engaging Fixer Agent.`, 'warning', 'Workflow');
       startFixing();
     } else {
-      addLog(AgentRole.QA_LEAD, "All Systems Green. Mission Accomplished.", 'success');
+      addLog(AgentRole.QA_LEAD, "All Systems Green. Mission Accomplished.", 'success', 'Workflow');
       dispatch({ type: 'FINISH_PROCESSING' });
     }
   };
@@ -374,14 +407,16 @@ export const useQAWorkflow = () => {
     let newCode = state.codeContext;
     
     for (const task of failedTasks) {
-       addLog(AgentRole.FIXER, `Analyzing defect in ${task.id}...`, 'info');
+       addLog(AgentRole.FIXER, `Analyzing defect in ${task.id}...`, 'info', 'GeminiService');
        try {
          const fix = await GeminiService.generateFix(state.codeContext, task, state.progressReport);
          dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { fixSuggestion: fix } } });
-         addLog(AgentRole.FIXER, `Patch generated for ${task.id}`, 'success');
+         addLog(AgentRole.FIXER, `Patch generated for ${task.id}`, 'success', 'GeminiService');
          await updateReport("FIX_PROPOSED", `Fix for ${task.id}.`);
          newCode += `\n\n// FIX FOR ${task.id} (Cycle ${state.currentCycle}):\n${fix}`;
-       } catch (e) { addLog(AgentRole.FIXER, `Fix generation failed for ${task.id}`, 'error'); }
+       } catch (e: any) { 
+           reportError('GeminiService', `Fix Generation Failed: ${task.id}`, e);
+       }
     }
     
     dispatch({ type: 'SET_CODE', payload: newCode });
@@ -390,13 +425,13 @@ export const useQAWorkflow = () => {
 
   const checkRegression = async () => {
     if (state.currentCycle >= state.maxCycles) {
-      addLog(AgentRole.QA_LEAD, "Maximum fix cycles reached.", 'error');
+      addLog(AgentRole.QA_LEAD, "Maximum fix cycles reached.", 'error', 'Workflow');
       dispatch({ type: 'FINISH_PROCESSING' });
       return;
     }
     dispatch({ type: 'SET_STEP', payload: 'REGRESSION_CHECK' });
     dispatch({ type: 'INCREMENT_CYCLE' });
-    addLog(AgentRole.QA_LEAD, `Starting Regression Cycle ${state.currentCycle}...`, 'warning');
+    addLog(AgentRole.QA_LEAD, `Starting Regression Cycle ${state.currentCycle}...`, 'warning', 'Workflow');
     
     const resetTasks = state.tasks.map(t => ({ ...t, status: TaskStatus.PENDING, resultLog: undefined, failureReason: undefined }));
     dispatch({ type: 'SET_TASKS', payload: resetTasks });
@@ -408,7 +443,7 @@ export const useQAWorkflow = () => {
     actions: {
       clearSession, saveProject, loadSession, setRepoContext, setCode, appendCode, setView, setCloudConfig,
       handleCloudUpload, handleLogUpload, startAnalysis, startMission, 
-      applyFixAndPR // Export new action
+      applyFixAndPR, toggleDebugConsole, clearLogs
     }
   };
 };

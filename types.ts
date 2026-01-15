@@ -4,6 +4,7 @@ export enum AgentRole {
   QA_LEAD = 'QA_LEAD',     // Breaks down tasks
   TESTER = 'TESTER',       // Simulates execution & validates
   FIXER = 'FIXER',         // Proposes fixes
+  SYSTEM = 'SYSTEM',       // New: For internal system logs
 }
 
 export enum TaskStatus {
@@ -32,6 +33,8 @@ export interface LogEntry {
   role: AgentRole;
   message: string;
   type: 'info' | 'success' | 'error' | 'warning';
+  source?: string; // e.g., 'GeminiService', 'GithubService', 'Reducer'
+  details?: any;   // e.g., full error object or API response payload
 }
 
 export interface CloudinaryConfig {
@@ -63,4 +66,5 @@ export interface AppState {
   cloudinaryConfig: CloudinaryConfig; 
   sessionId: string; 
   repoCatalog: RepoCatalogItem[]; 
+  showDebugConsole: boolean; // New: Toggle for Debug Console
 }

@@ -37,14 +37,20 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks, githubToke
         let i = 0;
         const interval = setInterval(() => {
             if (i < mockBootLogs.length) {
-                setConsoleOutput(prev => [...prev, mockBootLogs[i]]);
+                // Defensive Check: Ensure log exists
+                const nextLog = mockBootLogs[i];
+                if (nextLog) {
+                    setConsoleOutput(prev => [...prev, nextLog]);
+                }
                 i++;
             }
         }, 800);
         return () => clearInterval(interval);
     } 
     else if ((displayTask.status === TaskStatus.PASSED || displayTask.status === TaskStatus.FAILED) && displayTask.executionLogs) {
-        setConsoleOutput(displayTask.executionLogs.map(l => `> ${l}`));
+        // Defensive Check: Filter out undefined logs immediately
+        const safeLogs = displayTask.executionLogs.filter(l => typeof l === 'string');
+        setConsoleOutput(safeLogs.map(l => `> ${l}`));
     }
   }, [displayTask]);
 
@@ -101,18 +107,23 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks, githubToke
             
              <div className="flex-1 bg-black/50 rounded border border-slate-800 p-2 font-mono text-[10px] relative overflow-hidden flex flex-col shadow-inner">
                  <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                     {consoleOutput.map((log, idx) => (
-                         <div key={idx} className="flex gap-2 animate-fadeIn">
-                             <span className="text-slate-700 select-none">$</span>
-                             <span className={`${
-                                 log.includes('Error') || log.includes('Failed') ? 'text-red-400' : 
-                                 log.includes('Success') || log.includes('Passed') ? 'text-green-400' : 
-                                 'text-slate-400'
-                             }`}>
-                                 {log.replace('> ', '')}
-                             </span>
-                         </div>
-                     ))}
+                     {consoleOutput.map((logItem, idx) => {
+                         // CRITICAL FIX: Ensure logItem is a string before checking includes
+                         const log = logItem || ''; 
+                         
+                         return (
+                             <div key={idx} className="flex gap-2 animate-fadeIn">
+                                 <span className="text-slate-700 select-none">$</span>
+                                 <span className={`${
+                                     log.includes('Error') || log.includes('Failed') ? 'text-red-400' : 
+                                     log.includes('Success') || log.includes('Passed') ? 'text-green-400' : 
+                                     'text-slate-400'
+                                 }`}>
+                                     {log.replace('> ', '')}
+                                 </span>
+                             </div>
+                         );
+                     })}
                      {isRunning && <div className="animate-pulse text-blue-500">_</div>}
                  </div>
             </div>
