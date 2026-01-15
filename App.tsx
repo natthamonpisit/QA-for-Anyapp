@@ -8,9 +8,10 @@ import DashboardView from './views/DashboardView';
 export default function App() {
   const qa = useQAWorkflow();
   
-  // Bridge Github logic to QA Logic (Code Import)
-  const gh = useGithubBrowser((content) => {
-      qa.actions.setCode(content); // Use setCode instead of append for clean start
+  // Bridge Github logic to QA Logic (Code Import + Repo Name)
+  const gh = useGithubBrowser((content, repoName) => {
+      // Use setRepoContext to store both the code and the repo identity
+      qa.actions.setRepoContext(repoName, content); 
   });
 
   if (qa.state.currentView === 'ONBOARDING') {

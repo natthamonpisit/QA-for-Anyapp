@@ -35,7 +35,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
             <div className="h-6 w-px bg-slate-700 mx-1"></div>
             <div>
                 <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                    {ghState.repoInput || 'Session'} 
+                    {qaState.currentRepoName || ghState.repoInput || 'Project QA'} 
                     <span className="text-xs font-normal text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">Mission Control</span>
                 </h1>
             </div>

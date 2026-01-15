@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { BrainCircuit, Github, RotateCw, Key, CheckCheck, LogOut, Lock, Folder, Terminal, ArrowRight, ExternalLink, Play, Search, Loader2, History, Plus, LayoutGrid } from 'lucide-react';
+import { BrainCircuit, Github, RotateCw, Key, CheckCheck, LogOut, Lock, Folder, Terminal, ArrowRight, ExternalLink, Play, Search, Loader2, History, Plus, LayoutGrid, ChevronLeft } from 'lucide-react';
 
 interface OnboardingViewProps {
   gh: any; 
@@ -13,20 +13,14 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
   const { state: qaState, actions: qaActions } = qa;
   
   // Local state for UI tabs/modes
-  const [activeTab, setActiveTab] = useState<'CATALOG' | 'NEW'>('CATALOG');
+  const [activeTab, setActiveTab] = useState<'CATALOG' | 'NEW'>('NEW');
 
   const openGitHubTokenPage = () => {
     const url = 'https://github.com/settings/tokens/new?description=QA-Agent-Session&scopes=repo';
     window.open(url, '_blank');
   };
 
-  // Triggered when selecting a repo from "New Connection" list OR "Catalog"
   const handleAnalyzeRepo = async (repoFullName: string, fromCatalog: boolean = false) => {
-      // If from catalog, we might need to be connected first? 
-      // For now, let's assume if ghState.isConnected is false, we need to prompt connect, 
-      // BUT simplify: Just set the repoInput and try to clone.
-      // If the token is missing in ghState, useGithubBrowser will fail.
-      
       if (!ghState.isConnected && !ghState.githubToken && fromCatalog) {
           alert("กรุณาเชื่อมต่อ GitHub Token ก่อนเริ่มงาน (เพื่อความปลอดภัย Token จะไม่ถูกบันทึกถาวร)");
           setActiveTab('NEW');
@@ -42,7 +36,8 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
   useEffect(() => {
       // Only trigger if we are in IDLE, have code, and NO summary yet.
       if (qaState.codeContext && !qaState.functionSummary && qaState.workflowStep === 'IDLE' && !ghState.isLoading) {
-          qaActions.startAnalysis(undefined, ghState.repoInput);
+          // Pass currentRepoName from state to analysis
+          qaActions.startAnalysis(undefined, qaState.currentRepoName);
       }
   }, [qaState.codeContext, ghState.isLoading]);
 
@@ -82,20 +77,20 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
             <div className="md:w-1/4 flex flex-col gap-4">
                 <nav className="flex flex-col gap-2">
                     <button 
+                        onClick={() => setActiveTab('NEW')}
+                        className={`text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${activeTab === 'NEW' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
+                    >
+                        <Plus className="w-5 h-5" />
+                        <span className="font-medium text-sm">เริ่มโปรเจคใหม่</span>
+                    </button>
+
+                    <button 
                         onClick={() => setActiveTab('CATALOG')}
                         className={`text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${activeTab === 'CATALOG' ? 'bg-slate-800 text-white shadow-lg border border-slate-700' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
                     >
                         <History className="w-5 h-5" />
                         <span className="font-medium text-sm">ประวัติโปรเจค</span>
                         {qaState.repoCatalog.length > 0 && <span className="ml-auto text-[10px] bg-slate-700 px-1.5 py-0.5 rounded-full">{qaState.repoCatalog.length}</span>}
-                    </button>
-
-                    <button 
-                        onClick={() => setActiveTab('NEW')}
-                        className={`text-left px-4 py-3 rounded-xl flex items-center gap-3 transition-all ${activeTab === 'NEW' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}
-                    >
-                        <Plus className="w-5 h-5" />
-                        <span className="font-medium text-sm">เริ่มโปรเจคใหม่</span>
                     </button>
                 </nav>
 
@@ -118,7 +113,10 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                         <h2 className="text-xl font-bold text-white mt-6 mb-2">
                              {qaState.workflowStep === 'ANALYZING' ? 'กำลังวิเคราะห์โครงสร้าง...' : 'กำลังดึงข้อมูล...'}
                         </h2>
-                        <p className="text-slate-400 text-sm">{ghState.loadingMessage || 'Architect Agent is mapping the matrix...'}</p>
+                        <div className="flex flex-col items-center gap-1">
+                            {ghState.repoInput && <div className="text-blue-400 font-mono text-sm">{ghState.repoInput}</div>}
+                            <p className="text-slate-400 text-sm">{ghState.loadingMessage || 'Architect Agent is mapping the matrix...'}</p>
+                        </div>
                     </div>
                 )}
 
@@ -131,12 +129,23 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                                     <CheckCheck className="w-6 h-6 text-green-400" />
                                     พร้อมเริ่มภารกิจ
                                 </h2>
-                                <p className="text-slate-400 text-sm mt-1">วิเคราะห์ Repository: <span className="text-blue-400 font-mono">{ghState.repoInput}</span> เสร็จสมบูรณ์</p>
+                                <p className="text-slate-400 text-sm mt-1 flex items-center gap-2">
+                                    Repository: 
+                                    <span className="text-blue-400 font-mono bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                                        {qaState.currentRepoName || ghState.repoInput || 'Unknown Repo'}
+                                    </span>
+                                </p>
                             </div>
-                            <button onClick={onProceed} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all hover:scale-105">
-                                <Play className="w-5 h-5 fill-current" />
-                                เข้าสู่ Mission Control
-                            </button>
+                            <div className="flex gap-3">
+                                <button onClick={() => qaActions.clearSession()} className="text-slate-400 hover:text-white px-4 py-3 rounded-xl font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-2">
+                                    <ChevronLeft className="w-4 h-4" />
+                                    Back
+                                </button>
+                                <button onClick={onProceed} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all hover:scale-105">
+                                    <Play className="w-5 h-5 fill-current" />
+                                    เข้าสู่ Mission Control
+                                </button>
+                            </div>
                         </div>
                         <div className="flex-1 bg-slate-900/50 rounded-xl border border-slate-800 p-6 shadow-inner overflow-hidden flex flex-col">
                             <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2"><Terminal className="w-4 h-4 text-purple-400"/> Architect Summary</h3>
@@ -147,54 +156,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                      </div>
                 ) : (
                     <>
-                        {/* TAB: CATALOG */}
-                        {activeTab === 'CATALOG' && (
-                            <div className="animate-fadeIn h-full flex flex-col">
-                                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                                    <LayoutGrid className="w-5 h-5 text-purple-400" /> โปรเจคที่เคยทำ (Recent Projects)
-                                </h2>
-                                
-                                {qaState.repoCatalog.length === 0 ? (
-                                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4 border-2 border-dashed border-slate-800 rounded-xl">
-                                        <Folder className="w-12 h-12 opacity-20" />
-                                        <p>ยังไม่มีประวัติโปรเจค</p>
-                                        <button onClick={() => setActiveTab('NEW')} className="text-blue-400 hover:text-blue-300 text-sm font-medium">
-                                            + เริ่มโปรเจคแรกของคุณ
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto pr-2 pb-4">
-                                        {qaState.repoCatalog.map((item: any) => (
-                                            <button 
-                                                key={item.id}
-                                                onClick={() => handleAnalyzeRepo(item.id, true)}
-                                                className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/50 p-4 rounded-xl text-left transition-all group flex flex-col gap-3 relative overflow-hidden"
-                                            >
-                                                <div className="flex items-start justify-between w-full">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 group-hover:text-blue-300"><Github className="w-5 h-5"/></div>
-                                                        <div>
-                                                            <h3 className="font-semibold text-slate-200 group-hover:text-white">{item.name}</h3>
-                                                            <p className="text-[10px] text-slate-500 font-mono">{item.id}</p>
-                                                        </div>
-                                                    </div>
-                                                    <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-blue-400 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                                                </div>
-                                                <div className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                                                    {item.description}
-                                                </div>
-                                                <div className="mt-auto pt-3 border-t border-slate-700/30 flex items-center justify-between text-[10px] text-slate-600">
-                                                    <span>Last check: {new Date(item.lastAnalyzed).toLocaleDateString()}</span>
-                                                    <span className="group-hover:text-blue-400 transition-colors">Re-Analyze</span>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* TAB: NEW PROJECT */}
+                        {/* TAB: NEW PROJECT (Default) */}
                         {activeTab === 'NEW' && (
                             <div className="animate-fadeIn h-full flex flex-col">
                                 <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -244,7 +206,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                                         </div>
                                         <div className="flex-1 overflow-y-auto p-2">
                                             {ghState.userRepos.map((repo: any) => (
-                                                <button key={repo.id} onClick={() => handleAnalyzeRepo(repo)} className="w-full text-left flex items-center gap-3 p-3 hover:bg-slate-800 border-b border-slate-800/30 transition-colors group rounded-lg mb-1">
+                                                <button key={repo.id} onClick={() => handleAnalyzeRepo(repo.full_name)} className="w-full text-left flex items-center gap-3 p-3 hover:bg-slate-800 border-b border-slate-800/30 transition-colors group rounded-lg mb-1">
                                                     <div className={`p-2 rounded-lg ${repo.private ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-400'}`}>{repo.private ? <Lock className="w-4 h-4" /> : <Folder className="w-4 h-4" />}</div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="text-sm text-slate-200 font-medium truncate group-hover:text-blue-400 transition-colors">{repo.full_name}</div>
@@ -256,6 +218,53 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                                                 </button>
                                             ))}
                                         </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* TAB: CATALOG */}
+                        {activeTab === 'CATALOG' && (
+                            <div className="animate-fadeIn h-full flex flex-col">
+                                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                    <LayoutGrid className="w-5 h-5 text-purple-400" /> โปรเจคที่เคยทำ (Recent Projects)
+                                </h2>
+                                
+                                {qaState.repoCatalog.length === 0 ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-4 border-2 border-dashed border-slate-800 rounded-xl">
+                                        <Folder className="w-12 h-12 opacity-20" />
+                                        <p>ยังไม่มีประวัติโปรเจค</p>
+                                        <button onClick={() => setActiveTab('NEW')} className="text-blue-400 hover:text-blue-300 text-sm font-medium">
+                                            + เริ่มโปรเจคแรกของคุณ
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto pr-2 pb-4">
+                                        {qaState.repoCatalog.map((item: any) => (
+                                            <button 
+                                                key={item.id}
+                                                onClick={() => handleAnalyzeRepo(item.id, true)}
+                                                className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/50 p-4 rounded-xl text-left transition-all group flex flex-col gap-3 relative overflow-hidden"
+                                            >
+                                                <div className="flex items-start justify-between w-full">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 group-hover:text-blue-300"><Github className="w-5 h-5"/></div>
+                                                        <div>
+                                                            <h3 className="font-semibold text-slate-200 group-hover:text-white line-clamp-1" title={item.name}>{item.name}</h3>
+                                                            <p className="text-[10px] text-slate-500 font-mono truncate">{item.id}</p>
+                                                        </div>
+                                                    </div>
+                                                    <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-blue-400 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                                                </div>
+                                                <div className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                                                    {item.description}
+                                                </div>
+                                                <div className="mt-auto pt-3 border-t border-slate-700/30 flex items-center justify-between text-[10px] text-slate-600">
+                                                    <span>Last check: {new Date(item.lastAnalyzed).toLocaleDateString()}</span>
+                                                    <span className="group-hover:text-blue-400 transition-colors">Re-Analyze</span>
+                                                </div>
+                                            </button>
+                                        ))}
                                     </div>
                                 )}
                             </div>

@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import * as GithubService from '../services/githubService';
 
-export const useGithubBrowser = (onFilesImported: (content: string) => void) => {
+// Updated interface: content AND repoName
+export const useGithubBrowser = (onFilesImported: (content: string, repoName: string) => void) => {
   const [repoInput, setRepoInput] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [isTokenMode, setIsTokenMode] = useState(false);
@@ -42,7 +43,8 @@ export const useGithubBrowser = (onFilesImported: (content: string) => void) => 
               isConnected ? githubToken : undefined,
               (msg) => setLoadingMessage(msg)
           );
-          onFilesImported(content);
+          // Pass both content and repo name
+          onFilesImported(content, repo.full_name);
       } catch (e: any) {
           alert("Failed to clone: " + e.message);
       } finally {

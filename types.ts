@@ -45,6 +45,7 @@ export interface RepoCatalogItem {
 }
 
 export interface AppState {
+  currentRepoName: string; // New: Persist the active repo name
   codeContext: string;
   functionSummary: string;
   tasks: Task[];

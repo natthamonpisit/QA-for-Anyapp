@@ -7,6 +7,7 @@ import { CONFIG, INITIAL_REPORT_TEMPLATE } from '../config';
 // --- Reducer & Types ---
 
 const defaultState: AppState = {
+  currentRepoName: '',
   codeContext: '', 
   functionSummary: '',
   tasks: [],
@@ -26,6 +27,7 @@ const defaultState: AppState = {
 };
 
 type Action = 
+  | { type: 'SET_REPO_INFO'; payload: { name: string; code: string } }
   | { type: 'SET_CODE'; payload: string }
   | { type: 'APPEND_CODE'; payload: string }
   | { type: 'ADD_LOG'; payload: Omit<LogEntry, 'id' | 'timestamp'> }
@@ -45,6 +47,8 @@ type Action =
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'SET_REPO_INFO':
+      return { ...state, currentRepoName: action.payload.name, codeContext: action.payload.code };
     case 'SET_CODE':
       return { ...state, codeContext: action.payload };
     case 'APPEND_CODE':
@@ -119,19 +123,13 @@ export const useQAWorkflow = () => {
             const parsed = JSON.parse(saved);
             if (parsed.logs) parsed.logs = parsed.logs.map((l: any) => ({ ...l, timestamp: new Date(l.timestamp) }));
             
-            // IMPORTANT: Restore, but ensure we start at ONBOARDING unless explicitly needed. 
-            // We want the user to see the catalog first.
+            // Restore Catalog and Config only
             dispatch({ 
                 type: 'RESTORE_STATE', 
                 payload: { 
-                    ...defaultState, 
-                    ...parsed, 
-                    isProcessing: false,
-                    workflowStep: parsed.workflowStep === 'TESTING' ? 'IDLE' : parsed.workflowStep,
-                    // Force Onboarding view on reload so they see the menu/catalog
-                    currentView: 'ONBOARDING', 
-                    // Ensure catalog is loaded
-                    repoCatalog: parsed.repoCatalog || [] 
+                    ...defaultState, // Reset active session
+                    repoCatalog: parsed.repoCatalog || [], 
+                    cloudinaryConfig: parsed.cloudinaryConfig?.cloudName ? parsed.cloudinaryConfig : defaultState.cloudinaryConfig
                 } 
             });
         }
@@ -142,7 +140,6 @@ export const useQAWorkflow = () => {
     // Save
     const timeout = setTimeout(() => {
         try {
-            // We save everything, including the catalog
             const { isProcessing, ...stateToSave } = state;
             localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(stateToSave));
         } catch (e) { console.error("Save state failed", e); }
@@ -165,25 +162,33 @@ export const useQAWorkflow = () => {
   // --- ACTIONS ---
 
   const clearSession = () => dispatch({ type: 'CLEAR_SESSION' });
+  
+  // Set Repo Info (Name + Code) together
+  const setRepoContext = (name: string, code: string) => {
+      dispatch({ type: 'SET_REPO_INFO', payload: { name, code } });
+  };
+
   const setCode = (code: string) => dispatch({ type: 'SET_CODE', payload: code });
   const appendCode = (code: string) => dispatch({ type: 'APPEND_CODE', payload: code });
   const setView = (view: AppState['currentView']) => dispatch({ type: 'SET_VIEW', payload: view });
   const setCloudConfig = (config: CloudinaryConfig) => dispatch({ type: 'SET_CLOUD_CONFIG', payload: config });
   
   const handleCloudUpload = async (manual: boolean = false, currentReportContent?: string) => {
-     // implementation omitted for brevity
+     // implementation omitted
   };
 
   // --- WORKFLOW STEPS ---
 
   const startAnalysis = async (providedCode?: string, repoName?: string) => {
     const codeToAnalyze = providedCode || state.codeContext;
+    const activeRepoName = repoName || state.currentRepoName || 'Unknown Repository';
+
     if (!process.env.API_KEY) return alert("API_KEY missing");
     if (!codeToAnalyze.trim()) return alert("No code context");
 
     dispatch({ type: 'RESET_CYCLE' });
     dispatch({ type: 'SET_STEP', payload: 'ANALYZING' });
-    addLog(AgentRole.ARCHITECT, "Initiating Codebase Analysis...", 'info');
+    addLog(AgentRole.ARCHITECT, `Initiating Analysis for ${activeRepoName}...`, 'info');
     
     try {
       const summary = await GeminiService.analyzeCode(codeToAnalyze);
@@ -191,19 +196,32 @@ export const useQAWorkflow = () => {
       addLog(AgentRole.ARCHITECT, "Structural Summary Completed.", 'success');
       
       // Auto Save to Catalog
-      if (repoName) {
-        dispatch({
-            type: 'SAVE_TO_CATALOG',
-            payload: {
-                id: repoName,
-                name: repoName.split('/').pop() || repoName,
-                description: `Analyzed on ${new Date().toLocaleDateString()}`,
-                lastAnalyzed: new Date().toISOString(),
-                summarySnippet: summary.substring(0, 150) + "..."
-            }
-        });
+      // Attempt to extract a friendly name from the summary
+      const lines = summary.split('\n');
+      const titleLine = lines.find(l => l.trim().startsWith('# '));
+      let friendlyName = activeRepoName.split('/').pop() || activeRepoName;
+      
+      if (titleLine) {
+          friendlyName = titleLine.replace(/^#\s+/, '')
+              .replace(/Technical Structural Summary:?\s*/i, '')
+              .replace(/Architecture Overview:?\s*/i, '')
+              .trim();
       }
 
+      dispatch({
+          type: 'SAVE_TO_CATALOG',
+          payload: {
+              id: activeRepoName,
+              name: friendlyName,
+              description: `Analyzed on ${new Date().toLocaleDateString()}`,
+              lastAnalyzed: new Date().toISOString(),
+              summarySnippet: summary.substring(0, 150) + "..."
+          }
+      });
+      
+      // Update the current repo name to the friendly one if possible, or keep ID
+      // Actually, let's keep the ID as currentRepoName for consistency, display friendly name in UI
+      
       dispatch({ type: 'SET_STEP', payload: 'IDLE' }); 
     } catch (error) {
       addLog(AgentRole.ARCHITECT, "Analysis Failed.", 'error');
@@ -300,6 +318,7 @@ export const useQAWorkflow = () => {
     state,
     actions: {
       clearSession,
+      setRepoContext,
       setCode,
       appendCode,
       setView,
