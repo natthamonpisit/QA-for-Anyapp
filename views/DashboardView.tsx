@@ -76,7 +76,13 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
                 <TaskList tasks={qaState.tasks} />
             </div>
             <div className="lg:col-span-5 flex flex-col gap-4 min-h-[400px]">
-                <div className="h-1/3 min-h-[180px]"><ActiveTaskMonitor tasks={qaState.tasks} /></div>
+                <div className="h-1/3 min-h-[180px]">
+                    <ActiveTaskMonitor 
+                        tasks={qaState.tasks} 
+                        githubToken={ghState.githubToken}
+                        onApplyFix={(taskId) => qaActions.applyFixAndPR(taskId, ghState.githubToken)}
+                    />
+                </div>
                 <div className="flex-1 min-h-[300px]"><AgentLog logs={qaState.logs} onUpload={qaActions.handleLogUpload} /></div>
             </div>
             <div className="lg:col-span-4 flex flex-col gap-4 min-h-[400px]">

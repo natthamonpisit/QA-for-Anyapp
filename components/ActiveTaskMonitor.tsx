@@ -1,13 +1,17 @@
 
 import React from 'react';
 import { Task, TaskStatus } from '../types';
-import { Loader2, Microscope, Bug, Terminal, Sparkles, Cpu } from 'lucide-react';
+import { Loader2, Microscope, Bug, Terminal, Sparkles, Cpu, GitPullRequest, FileCode } from 'lucide-react';
+import { useQAWorkflow } from '../hooks/useQAWorkflow';
 
 interface ActiveTaskMonitorProps {
   tasks: Task[];
+  // Pass GitHub Token state to enable PR button
+  githubToken?: string;
+  onApplyFix?: (taskId: string) => void;
 }
 
-const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks }) => {
+const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks, githubToken, onApplyFix }) => {
   const activeTask = tasks.find(t => t.status === TaskStatus.RUNNING);
   const lastFailed = tasks.filter(t => t.status === TaskStatus.FAILED).pop();
   const displayTask = activeTask || lastFailed;
@@ -55,9 +59,20 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks }) => {
         <div className="p-5 flex-1 flex flex-col justify-center relative">
             {isRunning && <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500/50 blur-sm animate-scan opacity-50 pointer-events-none"></div>}
             
-            <h2 className="text-lg md:text-xl font-medium text-slate-200 mb-4 leading-relaxed font-sans">
+            <h2 className="text-lg md:text-xl font-medium text-slate-200 mb-2 leading-relaxed font-sans">
                 {displayTask.description}
             </h2>
+            
+            {/* Show Related Files (Point A) */}
+            {displayTask.relatedFiles && displayTask.relatedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {displayTask.relatedFiles.map((file, idx) => (
+                        <span key={idx} className="flex items-center gap-1 text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 font-mono">
+                            <FileCode className="w-3 h-3" /> {file}
+                        </span>
+                    ))}
+                </div>
+            )}
 
             {/* Terminal Output Look */}
             <div className="bg-[#0c0c0c] rounded border border-slate-800 p-3 font-mono text-xs relative overflow-hidden group">
@@ -73,7 +88,7 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks }) => {
                  <p className="text-slate-300 pl-4 border-l-2 border-slate-800">{displayTask.expectedResult}</p>
             </div>
 
-            {/* Failure Analysis (Animated) */}
+            {/* Failure Analysis & PR Button (Point B) */}
             {isFailed && (
                 <div className="mt-4 space-y-3 animate-fadeIn">
                     <div className="flex gap-3">
@@ -88,9 +103,33 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks }) => {
                              <div className="w-0.5 bg-green-800/50"></div>
                              <div className="flex-1">
                                 <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> แนวทางแก้ไข (Auto-Fix)</h4>
-                                <div className="bg-green-950/10 p-2 rounded border border-green-500/10">
-                                    <pre className="text-[10px] font-mono text-green-400 overflow-x-auto whitespace-pre-wrap">{displayTask.fixSuggestion.substring(0, 150)}...</pre>
+                                <div className="bg-green-950/10 p-2 rounded border border-green-500/10 mb-2">
+                                    <pre className="text-[10px] font-mono text-green-400 overflow-x-auto whitespace-pre-wrap max-h-32">{displayTask.fixSuggestion}</pre>
                                 </div>
+                                
+                                {/* Point B: Create PR Button */}
+                                {onApplyFix && !displayTask.prUrl && (
+                                    <button 
+                                        onClick={() => onApplyFix(displayTask.id)}
+                                        disabled={!githubToken}
+                                        className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-xs font-medium py-2 rounded transition-colors shadow-lg shadow-green-900/20"
+                                    >
+                                        <GitPullRequest className="w-3.5 h-3.5" />
+                                        {githubToken ? 'Create Pull Request (Safe Fix)' : 'Connect GitHub Token to Fix'}
+                                    </button>
+                                )}
+
+                                {displayTask.prUrl && (
+                                    <a 
+                                        href={displayTask.prUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-blue-500/30 text-xs font-medium py-2 rounded transition-colors"
+                                    >
+                                        <GitPullRequest className="w-3.5 h-3.5" />
+                                        View Pull Request
+                                    </a>
+                                )}
                              </div>
                         </div>
                     )}

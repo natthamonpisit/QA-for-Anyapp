@@ -21,6 +21,8 @@ export interface Task {
   resultLog?: string;
   failureReason?: string;
   fixSuggestion?: string;
+  relatedFiles?: string[]; // Point A: Identify relevant files for context optimization
+  prUrl?: string;          // Point B: Link to the created Pull Request
 }
 
 export interface LogEntry {
@@ -42,7 +44,7 @@ export interface RepoCatalogItem {
   description: string;
   lastAnalyzed: string; // ISO Date
   summarySnippet: string;
-  savedState?: Partial<AppState>; // New: Store the full session snapshot here
+  savedState?: Partial<AppState>; 
 }
 
 export interface AppState {

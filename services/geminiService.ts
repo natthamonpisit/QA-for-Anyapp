@@ -5,23 +5,46 @@ import { CONFIG } from "../config";
 
 // ==========================================
 // GEMINI SERVICE
-// หัวใจหลักในการคุยกับ AI (Google Gemini)
-// แบ่งหน้าที่ตาม Role ของ Agent เพื่อเลือก Model ที่เหมาะสม
 // ==========================================
 
-// Helper: ตรวจสอบและสร้าง Instance ของ Gemini Client
 const getAI = () => {
   if (!process.env.API_KEY) {
     throw new Error("API Key is missing. Please set process.env.API_KEY.");
   }
-  // Initialize client ด้วย API Key จาก Environment Variable
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
+// Helper to filter code based on file paths (Smart Context)
+const extractRelatedCode = (fullCode: string, filePaths: string[]): string => {
+    if (!filePaths || filePaths.length === 0) return fullCode; // Fallback
+    
+    // Our custom format is "// === FILE: path/to/file ==="
+    // We split by this delimiter
+    const fileBlocks = fullCode.split('// === FILE: ');
+    
+    let filteredCode = '';
+    
+    fileBlocks.forEach(block => {
+        if (!block.trim()) return;
+        // Re-construct the line
+        const lines = block.split('\n');
+        const fileName = lines[0].replace(' ===', '').trim();
+        
+        // Check if this file is in our requested list
+        // Partial match allows flexibility (e.g. "utils.ts" matches "src/utils.ts")
+        const isRelated = filePaths.some(p => fileName.includes(p));
+        
+        if (isRelated) {
+            filteredCode += `// === FILE: ${fileName} ===\n${lines.slice(1).join('\n')}`;
+        }
+    });
+
+    // If filtering results in empty (AI hallucinated paths), return full code to be safe
+    return filteredCode.trim() ? filteredCode : fullCode;
+};
+
 /**
- * 1. ARCHITECT AGENT (สถาปนิกซอฟต์แวร์)
- * หน้าที่: อ่านโค้ดทั้งหมด แล้วสรุปโครงสร้าง (Structure) และ Logic สำคัญ
- * Model: GEMINI PRO (ต้องการความฉลาดสูงสุดในการทำความเข้าใจบริบทใหญ่)
+ * 1. ARCHITECT AGENT
  */
 export const analyzeCode = async (code: string): Promise<string> => {
   const ai = getAI();
@@ -32,18 +55,17 @@ export const analyzeCode = async (code: string): Promise<string> => {
     Goal:
     - Identify key modules/functions and their dependencies.
     - Summarize logic flow.
-    - This summary will be used by QA Agents so they understand the system WITHOUT reading the full code every time.
+    - **List all file paths found in the code.**
     
     Code:
-    ${code}
+    ${code.substring(0, 70000)} 
     
     Output Format:
     - Markdown formatted.
-    - **LANGUAGE: THAI ONLY** (Use English for technical terms/variable names where appropriate).
+    - **LANGUAGE: THAI ONLY** (Use English for technical terms).
     - Concise but technical.
   `;
 
-  // เรียกใช้ Model PRO
   const response = await ai.models.generateContent({
     model: CONFIG.GEMINI_MODEL_PRO,
     contents: prompt,
@@ -53,38 +75,38 @@ export const analyzeCode = async (code: string): Promise<string> => {
 };
 
 /**
- * 2. QA LEAD AGENT (หัวหน้าทีม QA)
- * หน้าที่: วางแผนการทดสอบ (Test Plan) โดยดูจากสรุปโครงสร้างและ Report ล่าสุด
- * Model: GEMINI PRO (ต้องการ Logic ในการแตกงานที่ซับซ้อน และครอบคลุม)
+ * 2. QA LEAD AGENT (Smart Context Enabled)
+ * เพิ่ม: ให้ AI ระบุ 'relatedFiles' ในแต่ละ Task
  */
 export const createTestPlan = async (code: string, summary: string, currentReport: string): Promise<Task[]> => {
   const ai = getAI();
   const prompt = `
     Role: QA Lead (Thai Language).
-    Task: Create granular test tasks.
+    Task: Create granular test tasks based on the summary.
     
     Context:
     1. Code Structure Summary:
     ${summary}
     
-    2. Previous Progress Report (Avoid repeating finished work):
+    2. Previous Progress Report:
     ${currentReport}
 
     Constraints:
     - Break tasks into small logic units.
-    - If this is a regression cycle, focus on previously failed areas mentioned in the Report.
     - Output JSON Array only.
+    - **CRITICAL: For each task, list the filenames (relatedFiles) that are relevant to test it.**
 
     Format:
     [
-      { "id": "task_id", "description": "Test requirement X (In Thai)", "expectedResult": "Y (In Thai)" }
+      { 
+        "id": "task_id", 
+        "description": "Test requirement X (In Thai)", 
+        "expectedResult": "Y (In Thai)",
+        "relatedFiles": ["src/App.tsx", "utils/helper.ts"] 
+      }
     ]
-
-    Code (Reference):
-    ${code.substring(0, 50000)} // Truncate if too massive, rely on summary
   `;
 
-  // เรียกใช้ Model PRO และบังคับ Output เป็น JSON
   const response = await ai.models.generateContent({
     model: CONFIG.GEMINI_MODEL_PRO,
     contents: prompt,
@@ -93,7 +115,6 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
 
   try {
     const tasks = JSON.parse(response.text || "[]");
-    // เติม status เริ่มต้นเป็น PENDING
     return tasks.map((t: any) => ({ ...t, status: 'PENDING' }));
   } catch (e) {
     console.error("Failed to parse task JSON", e);
@@ -102,37 +123,36 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
 };
 
 /**
- * 3. TESTER AGENT (ผู้ทดสอบ)
- * หน้าที่: จำลองการทำงาน (Simulation) ของโค้ดตาม Task ที่ได้รับ
- * Model: GEMINI FLASH (เน้นความเร็ว เพราะปริมาณ Task เยอะ และ Scope งานแคบลงแล้ว)
+ * 3. TESTER AGENT (Uses Smart Context)
+ * ตัด Code ให้เหลือเฉพาะที่เกี่ยวข้องก่อนส่งให้ Tester
  */
-export const executeTestSimulation = async (code: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string }> => {
+export const executeTestSimulation = async (fullCode: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string }> => {
   const ai = getAI();
   
+  // Apply Smart Context (Point A)
+  const contextCode = extractRelatedCode(fullCode, task.relatedFiles || []);
+
   const prompt = `
     Role: QA Tester (Thai Language).
     Task: Execute Mental Simulation for Task: "${task.description}".
     
-    History (Progress Report):
+    History:
     ${currentReport}
 
     Expected Result: ${task.expectedResult}
 
-    Code Base:
-    ${code}
+    Relevant Code Base (Filtered):
+    ${contextCode}
 
     Instructions:
-    1. Locate the relevant function/logic in the Code Base.
-    2. Simulate inputs/execution flow.
-    3. Check against Expected Result.
-    4. If it fails, explain WHY specifically (Logic error? Syntax? Missing handling?).
-    5. **Response MUST be in THAI**.
+    1. Simulate execution.
+    2. Check against Expected Result.
+    3. **Response MUST be in THAI**.
 
     Output JSON:
     { "passed": boolean, "reason": "Technical explanation in Thai" }
   `;
 
-  // เรียกใช้ Model FLASH
   const response = await ai.models.generateContent({
     model: CONFIG.GEMINI_MODEL_FLASH,
     contents: prompt,
@@ -147,12 +167,12 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
 };
 
 /**
- * 4. FIXER AGENT (นักพัฒนา)
- * หน้าที่: เขียนโค้ดแก้บั๊กตามผลการทดสอบที่ Failed
- * Model: GEMINI FLASH (เน้นความเร็วในการเจนโค้ดสั้นๆ ตามคำสั่งที่ชัดเจน)
+ * 4. FIXER AGENT (Returns Filename + Content for PR)
  */
-export const generateFix = async (code: string, task: Task, currentReport: string): Promise<string> => {
+export const generateFix = async (fullCode: string, task: Task, currentReport: string): Promise<string> => {
   const ai = getAI();
+  const contextCode = extractRelatedCode(fullCode, task.relatedFiles || []);
+
   const prompt = `
     Role: Senior Developer (Fixer) (Thai Language).
     Task: Fix the code based on the FAILED test result.
@@ -160,23 +180,19 @@ export const generateFix = async (code: string, task: Task, currentReport: strin
     Failed Task: ${task.description}
     Failure Log: ${task.failureReason}
     
-    Context from Report:
-    ${currentReport}
-
-    Original Code:
-    ${code}
+    Relevant Code:
+    ${contextCode}
 
     Instructions:
-    - Return ONLY the corrected code snippet/function.
-    - Do not break other parts of the app (Regression awareness).
-    - Add comments explaining the fix in Thai.
+    - **CRITICAL**: Return the FULL CONTENT of the file that needs changing.
+    - If multiple files need changes, choose the most critical one.
+    - Start the response with the filename on the first line like: "FILENAME: src/App.tsx"
+    - Then the code.
   `;
 
-  // เรียกใช้ Model FLASH
   const response = await ai.models.generateContent({
     model: CONFIG.GEMINI_MODEL_FLASH,
     contents: prompt,
-    config: { responseMimeType: "application/json" }
   });
 
   return response.text || "// ไม่สามารถสร้าง Code แก้ไขได้";
