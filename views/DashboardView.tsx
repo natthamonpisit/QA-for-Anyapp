@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search, LogOut, Save, Check } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import TaskList from '../components/TaskList';
 import ActiveTaskMonitor from '../components/ActiveTaskMonitor';
@@ -16,9 +16,16 @@ interface DashboardViewProps {
 const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
   const { state: qaState, actions: qaActions } = qa;
   const { state: ghState, actions: ghActions } = gh;
+  const [isSaved, setIsSaved] = useState(false);
 
   // Helper for tokens
   const estimatedTokens = Math.ceil(qaState.codeContext.length / 4);
+
+  const handleSave = () => {
+      qaActions.saveProject();
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col p-4 md:p-6 gap-6">
@@ -41,7 +48,18 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
             </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+           <button 
+             onClick={handleSave} 
+             className={`flex items-center gap-2 px-3 py-2 rounded-md transition-all border ${isSaved ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+             title="Save Progress to Catalog"
+           >
+              {isSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              <span className="text-xs font-medium">{isSaved ? 'Saved' : 'Save'}</span>
+           </button>
+           
+           <div className="h-6 w-px bg-slate-700 mx-1"></div>
+
            <button onClick={() => { if(window.confirm("ต้องการล้างข้อมูลทั้งหมดหรือไม่?")) { qaActions.clearSession(); ghActions.disconnect(); qaActions.setView('ONBOARDING'); } }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition-colors" title="ล้างเซสชัน"><Trash2 className="w-4 h-4" /></button>
 
           <button onClick={qaActions.startMission} disabled={qaState.isProcessing || !process.env.API_KEY} className={`flex items-center gap-2 px-6 py-2.5 rounded-md font-medium transition-all shadow-lg ${qaState.isProcessing ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>

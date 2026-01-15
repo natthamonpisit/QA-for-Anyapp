@@ -43,7 +43,9 @@ type Action =
   | { type: 'SET_CLOUD_CONFIG'; payload: CloudinaryConfig }
   | { type: 'CLEAR_SESSION' }
   | { type: 'RESTORE_STATE'; payload: AppState }
-  | { type: 'SAVE_TO_CATALOG'; payload: RepoCatalogItem };
+  | { type: 'SAVE_TO_CATALOG'; payload: RepoCatalogItem }
+  | { type: 'SNAPSHOT_TO_CATALOG' } // New Action: Save full state
+  | { type: 'LOAD_SESSION'; payload: Partial<AppState> }; // New Action: Load full state
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -86,7 +88,6 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_CLOUD_CONFIG':
       return { ...state, cloudinaryConfig: action.payload };
     case 'CLEAR_SESSION':
-      // Clear everything BUT the catalog and cloud config
       return { 
           ...defaultState, 
           sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`,
@@ -94,14 +95,71 @@ function reducer(state: AppState, action: Action): AppState {
           cloudinaryConfig: state.cloudinaryConfig
       };
     case 'SAVE_TO_CATALOG':
-        const existingIndex = state.repoCatalog.findIndex(item => item.id === action.payload.id);
-        let newCatalog = [...state.repoCatalog];
-        if (existingIndex >= 0) {
-            newCatalog[existingIndex] = action.payload; // Update existing
-        } else {
-            newCatalog = [action.payload, ...newCatalog]; // Add new to top
+        {
+            const existingIndex = state.repoCatalog.findIndex(item => item.id === action.payload.id);
+            let newCatalog = [...state.repoCatalog];
+            if (existingIndex >= 0) {
+                // Keep existing savedState if new payload doesn't have it
+                const existingState = newCatalog[existingIndex].savedState;
+                newCatalog[existingIndex] = { ...action.payload, savedState: action.payload.savedState || existingState };
+            } else {
+                newCatalog = [action.payload, ...newCatalog];
+            }
+            return { ...state, repoCatalog: newCatalog };
         }
-        return { ...state, repoCatalog: newCatalog };
+    case 'SNAPSHOT_TO_CATALOG':
+        {
+            if (!state.currentRepoName) return state; // Can't save without ID
+            
+            // Create snapshot of current session
+            const snapshot: Partial<AppState> = {
+                codeContext: state.codeContext,
+                functionSummary: state.functionSummary,
+                tasks: state.tasks,
+                logs: state.logs,
+                progressReport: state.progressReport,
+                currentCycle: state.currentCycle,
+                workflowStep: state.workflowStep,
+                currentRepoName: state.currentRepoName,
+                // Don't save isProcessing, force reset on load
+            };
+
+            const existingIndex = state.repoCatalog.findIndex(item => item.id === state.currentRepoName);
+            let newCatalog = [...state.repoCatalog];
+            
+            if (existingIndex >= 0) {
+                // Update existing item with new snapshot
+                newCatalog[existingIndex] = {
+                    ...newCatalog[existingIndex],
+                    lastAnalyzed: new Date().toISOString(),
+                    savedState: snapshot
+                };
+            } else {
+                // Create new item if somehow missing (fallback)
+                newCatalog = [{
+                    id: state.currentRepoName,
+                    name: state.currentRepoName,
+                    description: `Snapshot saved on ${new Date().toLocaleDateString()}`,
+                    lastAnalyzed: new Date().toISOString(),
+                    summarySnippet: state.functionSummary.substring(0, 100) + "...",
+                    savedState: snapshot
+                }, ...newCatalog];
+            }
+            return { ...state, repoCatalog: newCatalog };
+        }
+    case 'LOAD_SESSION':
+        return {
+            ...state,
+            ...action.payload,
+            // Ensure these are reset/safe
+            isProcessing: false,
+            workflowStep: action.payload.workflowStep === 'TESTING' || action.payload.workflowStep === 'FIXING' ? 'IDLE' : (action.payload.workflowStep || 'IDLE'),
+            // Convert string dates back to Date objects if needed (handled in hook but good safety)
+            logs: (action.payload.logs || []).map(l => ({
+                ...l,
+                timestamp: new Date(l.timestamp)
+            }))
+        };
     case 'RESTORE_STATE':
         return action.payload;
     default:
@@ -121,9 +179,12 @@ export const useQAWorkflow = () => {
         const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
-            if (parsed.logs) parsed.logs = parsed.logs.map((l: any) => ({ ...l, timestamp: new Date(l.timestamp) }));
+            // We DO NOT parse logs here for the session because we are clearing session on load.
+            // We only care about repoCatalog.
             
-            // Restore Catalog and Config only
+            // However, we need to ensure dates inside repoCatalog.savedState.logs are string-safe if we ever access them directly.
+            // But they will be re-hydrated when LOAD_SESSION is called.
+            
             dispatch({ 
                 type: 'RESTORE_STATE', 
                 payload: { 
@@ -162,8 +223,9 @@ export const useQAWorkflow = () => {
   // --- ACTIONS ---
 
   const clearSession = () => dispatch({ type: 'CLEAR_SESSION' });
+  const saveProject = () => dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
+  const loadSession = (savedState: Partial<AppState>) => dispatch({ type: 'LOAD_SESSION', payload: savedState });
   
-  // Set Repo Info (Name + Code) together
   const setRepoContext = (name: string, code: string) => {
       dispatch({ type: 'SET_REPO_INFO', payload: { name, code } });
   };
@@ -195,8 +257,6 @@ export const useQAWorkflow = () => {
       dispatch({ type: 'SET_SUMMARY', payload: summary });
       addLog(AgentRole.ARCHITECT, "Structural Summary Completed.", 'success');
       
-      // Auto Save to Catalog
-      // Attempt to extract a friendly name from the summary
       const lines = summary.split('\n');
       const titleLine = lines.find(l => l.trim().startsWith('# '));
       let friendlyName = activeRepoName.split('/').pop() || activeRepoName;
@@ -218,9 +278,6 @@ export const useQAWorkflow = () => {
               summarySnippet: summary.substring(0, 150) + "..."
           }
       });
-      
-      // Update the current repo name to the friendly one if possible, or keep ID
-      // Actually, let's keep the ID as currentRepoName for consistency, display friendly name in UI
       
       dispatch({ type: 'SET_STEP', payload: 'IDLE' }); 
     } catch (error) {
@@ -318,6 +375,8 @@ export const useQAWorkflow = () => {
     state,
     actions: {
       clearSession,
+      saveProject, // Export save action
+      loadSession, // Export load action
       setRepoContext,
       setCode,
       appendCode,

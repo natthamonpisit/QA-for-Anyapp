@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
-import { BrainCircuit, Github, RotateCw, Key, CheckCheck, LogOut, Lock, Folder, Terminal, ArrowRight, ExternalLink, Play, Search, Loader2, History, Plus, LayoutGrid, ChevronLeft } from 'lucide-react';
+import { BrainCircuit, Github, RotateCw, Key, CheckCheck, LogOut, Lock, Folder, Terminal, ArrowRight, ExternalLink, Play, Search, Loader2, History, Plus, LayoutGrid, ChevronLeft, Save, HardDriveDownload } from 'lucide-react';
+import { RepoCatalogItem } from '../types';
 
 interface OnboardingViewProps {
   gh: any; 
@@ -30,6 +31,17 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
 
       const repoObj = { full_name: repoFullName, default_branch: 'main' }; // Mock object for clone
       await ghActions.autoClone(repoObj as any);
+  };
+
+  const handleResumeSession = (item: RepoCatalogItem) => {
+      if (item.savedState) {
+          // 1. Load Session State
+          qaActions.loadSession(item.savedState);
+          // 2. Set UI Context for Github (visual only, real code is in savedState)
+          ghActions.setRepoInput(item.id);
+          // 3. Go to Dashboard
+          qaActions.setView('DASHBOARD');
+      }
   };
   
   // Watch for codeContext changes to trigger Analysis automatically
@@ -240,11 +252,10 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto pr-2 pb-4">
-                                        {qaState.repoCatalog.map((item: any) => (
-                                            <button 
+                                        {qaState.repoCatalog.map((item: RepoCatalogItem) => (
+                                            <div
                                                 key={item.id}
-                                                onClick={() => handleAnalyzeRepo(item.id, true)}
-                                                className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/50 p-4 rounded-xl text-left transition-all group flex flex-col gap-3 relative overflow-hidden"
+                                                className="bg-slate-800/40 border border-slate-700/50 p-4 rounded-xl flex flex-col gap-3 relative overflow-hidden group hover:bg-slate-800 hover:border-slate-600 transition-all"
                                             >
                                                 <div className="flex items-start justify-between w-full">
                                                     <div className="flex items-center gap-2">
@@ -254,16 +265,30 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                                                             <p className="text-[10px] text-slate-500 font-mono truncate">{item.id}</p>
                                                         </div>
                                                     </div>
-                                                    <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-blue-400 -translate-x-2 group-hover:translate-x-0 transition-all" />
                                                 </div>
-                                                <div className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                                                <div className="text-xs text-slate-400 line-clamp-2 leading-relaxed h-8">
                                                     {item.description}
                                                 </div>
-                                                <div className="mt-auto pt-3 border-t border-slate-700/30 flex items-center justify-between text-[10px] text-slate-600">
-                                                    <span>Last check: {new Date(item.lastAnalyzed).toLocaleDateString()}</span>
-                                                    <span className="group-hover:text-blue-400 transition-colors">Re-Analyze</span>
+                                                <div className="mt-auto pt-3 border-t border-slate-700/30 flex items-center justify-between gap-2">
+                                                    <span className="text-[10px] text-slate-600">Updated: {new Date(item.lastAnalyzed).toLocaleDateString()}</span>
+                                                    
+                                                    {item.savedState ? (
+                                                        <button 
+                                                            onClick={() => handleResumeSession(item)}
+                                                            className="flex items-center gap-1.5 text-[10px] bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded-lg font-medium transition-colors shadow-lg shadow-green-900/20"
+                                                        >
+                                                            <HardDriveDownload className="w-3 h-3" /> Resume
+                                                        </button>
+                                                    ) : (
+                                                        <button 
+                                                            onClick={() => handleAnalyzeRepo(item.id, true)}
+                                                            className="flex items-center gap-1.5 text-[10px] bg-slate-700 hover:bg-blue-600 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
+                                                        >
+                                                            <RotateCw className="w-3 h-3" /> Re-Analyze
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            </button>
+                                            </div>
                                         ))}
                                     </div>
                                 )}

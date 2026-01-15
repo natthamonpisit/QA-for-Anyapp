@@ -42,10 +42,11 @@ export interface RepoCatalogItem {
   description: string;
   lastAnalyzed: string; // ISO Date
   summarySnippet: string;
+  savedState?: Partial<AppState>; // New: Store the full session snapshot here
 }
 
 export interface AppState {
-  currentRepoName: string; // New: Persist the active repo name
+  currentRepoName: string; 
   codeContext: string;
   functionSummary: string;
   tasks: Task[];
@@ -58,5 +59,5 @@ export interface AppState {
   currentView: 'ONBOARDING' | 'DASHBOARD'; 
   cloudinaryConfig: CloudinaryConfig; 
   sessionId: string; 
-  repoCatalog: RepoCatalogItem[]; // New: History of projects
+  repoCatalog: RepoCatalogItem[]; 
 }
