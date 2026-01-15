@@ -5,18 +5,20 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "preinstall": "rm -rf package-lock.json || true",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "*",
+    "@google/genai": "^0.2.1",
     "lucide-react": "^0.300.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "clsx": "^2.1.0",
     "uuid": "^9.0.0"
+  },
+  "overrides": {
+    "@google/genai": "$@google/genai"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
