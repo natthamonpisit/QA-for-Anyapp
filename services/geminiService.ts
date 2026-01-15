@@ -3,17 +3,25 @@ import { GoogleGenAI } from "@google/genai";
 import { AgentRole, Task } from "../types";
 import { CONFIG } from "../config";
 
-// Helper to ensure API Key exists
+// ==========================================
+// GEMINI SERVICE
+// หัวใจหลักในการคุยกับ AI (Google Gemini)
+// แบ่งหน้าที่ตาม Role ของ Agent เพื่อเลือก Model ที่เหมาะสม
+// ==========================================
+
+// Helper: ตรวจสอบและสร้าง Instance ของ Gemini Client
 const getAI = () => {
   if (!process.env.API_KEY) {
     throw new Error("API Key is missing. Please set process.env.API_KEY.");
   }
+  // Initialize client ด้วย API Key จาก Environment Variable
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 /**
- * 1. ARCHITECT AGENT
- * Creates a "Map" of the code to save context for later agents.
+ * 1. ARCHITECT AGENT (สถาปนิกซอฟต์แวร์)
+ * หน้าที่: อ่านโค้ดทั้งหมด แล้วสรุปโครงสร้าง (Structure) และ Logic สำคัญ
+ * Model: GEMINI PRO (ต้องการความฉลาดสูงสุดในการทำความเข้าใจบริบทใหญ่)
  */
 export const analyzeCode = async (code: string): Promise<string> => {
   const ai = getAI();
@@ -35,8 +43,9 @@ export const analyzeCode = async (code: string): Promise<string> => {
     - Concise but technical.
   `;
 
+  // เรียกใช้ Model PRO
   const response = await ai.models.generateContent({
-    model: CONFIG.GEMINI_MODEL,
+    model: CONFIG.GEMINI_MODEL_PRO,
     contents: prompt,
   });
 
@@ -44,8 +53,9 @@ export const analyzeCode = async (code: string): Promise<string> => {
 };
 
 /**
- * 2. QA LEAD AGENT
- * Uses the Summary + Code + Previous Report to plan tasks.
+ * 2. QA LEAD AGENT (หัวหน้าทีม QA)
+ * หน้าที่: วางแผนการทดสอบ (Test Plan) โดยดูจากสรุปโครงสร้างและ Report ล่าสุด
+ * Model: GEMINI PRO (ต้องการ Logic ในการแตกงานที่ซับซ้อน และครอบคลุม)
  */
 export const createTestPlan = async (code: string, summary: string, currentReport: string): Promise<Task[]> => {
   const ai = getAI();
@@ -74,14 +84,16 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
     ${code.substring(0, 50000)} // Truncate if too massive, rely on summary
   `;
 
+  // เรียกใช้ Model PRO และบังคับ Output เป็น JSON
   const response = await ai.models.generateContent({
-    model: CONFIG.GEMINI_MODEL,
+    model: CONFIG.GEMINI_MODEL_PRO,
     contents: prompt,
     config: { responseMimeType: "application/json" }
   });
 
   try {
     const tasks = JSON.parse(response.text || "[]");
+    // เติม status เริ่มต้นเป็น PENDING
     return tasks.map((t: any) => ({ ...t, status: 'PENDING' }));
   } catch (e) {
     console.error("Failed to parse task JSON", e);
@@ -90,8 +102,9 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
 };
 
 /**
- * 3. TESTER AGENT
- * Validates a single task against the code. Reads the Report to know context.
+ * 3. TESTER AGENT (ผู้ทดสอบ)
+ * หน้าที่: จำลองการทำงาน (Simulation) ของโค้ดตาม Task ที่ได้รับ
+ * Model: GEMINI FLASH (เน้นความเร็ว เพราะปริมาณ Task เยอะ และ Scope งานแคบลงแล้ว)
  */
 export const executeTestSimulation = async (code: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string }> => {
   const ai = getAI();
@@ -119,8 +132,9 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
     { "passed": boolean, "reason": "Technical explanation in Thai" }
   `;
 
+  // เรียกใช้ Model FLASH
   const response = await ai.models.generateContent({
-    model: CONFIG.GEMINI_MODEL,
+    model: CONFIG.GEMINI_MODEL_FLASH,
     contents: prompt,
     config: { responseMimeType: "application/json" }
   });
@@ -133,8 +147,9 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
 };
 
 /**
- * 4. FIXER AGENT
- * Proposes a fix. MUST read the failure reason from the Report/Task.
+ * 4. FIXER AGENT (นักพัฒนา)
+ * หน้าที่: เขียนโค้ดแก้บั๊กตามผลการทดสอบที่ Failed
+ * Model: GEMINI FLASH (เน้นความเร็วในการเจนโค้ดสั้นๆ ตามคำสั่งที่ชัดเจน)
  */
 export const generateFix = async (code: string, task: Task, currentReport: string): Promise<string> => {
   const ai = getAI();
@@ -157,9 +172,11 @@ export const generateFix = async (code: string, task: Task, currentReport: strin
     - Add comments explaining the fix in Thai.
   `;
 
+  // เรียกใช้ Model FLASH
   const response = await ai.models.generateContent({
-    model: CONFIG.GEMINI_MODEL,
+    model: CONFIG.GEMINI_MODEL_FLASH,
     contents: prompt,
+    config: { responseMimeType: "application/json" }
   });
 
   return response.text || "// ไม่สามารถสร้าง Code แก้ไขได้";

@@ -5,28 +5,34 @@ import * as GeminiService from '../services/geminiService';
 import * as CloudinaryService from '../services/cloudinaryService';
 import { CONFIG, INITIAL_REPORT_TEMPLATE } from '../config';
 
-// --- Reducer & Types ---
+// ==========================================
+// USE QA WORKFLOW HOOK
+// "สมอง" ของฝั่ง Frontend ทำหน้าที่จัดการ State ทั้งหมดของแอพ
+// และควบคุม Flow การทำงานตั้งแต่ Analysis -> Testing -> Fixing
+// ==========================================
 
+// --- Default State (ค่าเริ่มต้น) ---
 const defaultState: AppState = {
   currentRepoName: '',
-  codeContext: '', 
-  functionSummary: '',
-  tasks: [],
-  logs: [],
-  progressReport: INITIAL_REPORT_TEMPLATE,
-  isProcessing: false,
-  currentCycle: 0,
+  codeContext: '', // โค้ดที่ดึงมา
+  functionSummary: '', // ผลวิเคราะห์จาก Architect
+  tasks: [], // รายการ Test Case
+  logs: [], // Log การทำงานของ AI
+  progressReport: INITIAL_REPORT_TEMPLATE, // รายงาน Markdown
+  isProcessing: false, // สถานะกำลังโหลด
+  currentCycle: 0, // รอบการแก้บั๊กปัจจุบัน
   maxCycles: CONFIG.MAX_CYCLES,
-  workflowStep: 'IDLE',
+  workflowStep: 'IDLE', // ขั้นตอนปัจจุบัน
   currentView: 'ONBOARDING',
   cloudinaryConfig: { 
     cloudName: CONFIG.CLOUDINARY_CLOUD_NAME, 
     uploadPreset: CONFIG.CLOUDINARY_PRESET 
   },
   sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`,
-  repoCatalog: []
+  repoCatalog: [] // ประวัติโปรเจค
 };
 
+// --- Reducer Types (Action ที่ส่งเข้ามาเปลี่ยน State) ---
 type Action = 
   | { type: 'SET_REPO_INFO'; payload: { name: string; code: string } }
   | { type: 'SET_CODE'; payload: string }
@@ -48,15 +54,18 @@ type Action =
   | { type: 'SNAPSHOT_TO_CATALOG' } 
   | { type: 'LOAD_SESSION'; payload: Partial<AppState> }; 
 
+// --- Reducer Function (ตัวอัพเดท State ตาม Action) ---
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_REPO_INFO':
+      // ตั้งค่าชื่อ Repo และ Code เริ่มต้น
       return { ...state, currentRepoName: action.payload.name, codeContext: action.payload.code };
     case 'SET_CODE':
       return { ...state, codeContext: action.payload };
     case 'APPEND_CODE':
       return { ...state, codeContext: state.codeContext + (state.codeContext ? '\n\n' : '') + action.payload };
     case 'ADD_LOG':
+      // เพิ่ม Log ใหม่ต่อท้าย
       return {
         ...state,
         logs: [...state.logs, { 
@@ -72,6 +81,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_TASKS':
       return { ...state, tasks: action.payload };
     case 'UPDATE_TASK':
+      // อัพเดทสถานะของ Task รายตัว (เช่น เปลี่ยนจาก Pending -> Running -> Passed)
       return {
         ...state,
         tasks: state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload.updates } : t),
@@ -89,6 +99,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_CLOUD_CONFIG':
       return { ...state, cloudinaryConfig: action.payload };
     case 'CLEAR_SESSION':
+      // ล้างข้อมูล Session แต่เก็บ Catalog และ Config ไว้
       return { 
           ...defaultState, 
           sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`,
@@ -97,6 +108,7 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case 'SAVE_TO_CATALOG':
         {
+            // บันทึก/อัพเดทรายการโปรเจคลง Catalog
             const existingIndex = state.repoCatalog.findIndex(item => item.id === action.payload.id);
             let newCatalog = [...state.repoCatalog];
             if (existingIndex >= 0) {
@@ -109,6 +121,7 @@ function reducer(state: AppState, action: Action): AppState {
         }
     case 'SNAPSHOT_TO_CATALOG':
         {
+            // Snapshot คือการ Save Game เก็บ State ปัจจุบันทั้งหมดลง Catalog
             if (!state.currentRepoName) return state; 
             
             const snapshot: Partial<AppState> = {
@@ -132,6 +145,7 @@ function reducer(state: AppState, action: Action): AppState {
                     savedState: snapshot
                 };
             } else {
+                // Fallback กรณีหา Catalog ไม่เจอ (สร้างใหม่)
                 newCatalog = [{
                     id: state.currentRepoName,
                     name: state.currentRepoName,
@@ -144,6 +158,7 @@ function reducer(state: AppState, action: Action): AppState {
             return { ...state, repoCatalog: newCatalog };
         }
     case 'LOAD_SESSION':
+        // โหลด Save Game กลับมา
         return {
             ...state,
             ...action.payload,
@@ -166,9 +181,8 @@ function reducer(state: AppState, action: Action): AppState {
 export const useQAWorkflow = () => {
   const [state, dispatch] = useReducer(reducer, defaultState);
 
-  // Persistence Logic
+  // 1. Load State from LocalStorage on mount
   useEffect(() => {
-    // Load
     try {
         const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
         if (saved) {
@@ -185,8 +199,8 @@ export const useQAWorkflow = () => {
     } catch(e) { console.error("Load state failed", e); }
   }, []);
 
+  // 2. Auto-Save State to LocalStorage on change
   useEffect(() => {
-    // Save
     const timeout = setTimeout(() => {
         try {
             const { isProcessing, ...stateToSave } = state;
@@ -196,7 +210,7 @@ export const useQAWorkflow = () => {
     return () => clearTimeout(timeout);
   }, [state]);
 
-  // Helpers
+  // Helper Wrappers
   const addLog = (role: AgentRole, message: string, type: 'info'|'success'|'error'|'warning' = 'info') => {
     dispatch({ type: 'ADD_LOG', payload: { role, message, type } });
   };
@@ -208,7 +222,7 @@ export const useQAWorkflow = () => {
     return newReport;
   };
 
-  // --- ACTIONS ---
+  // --- EXPORTED ACTIONS ---
 
   const clearSession = () => dispatch({ type: 'CLEAR_SESSION' });
   const saveProject = () => dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
@@ -223,8 +237,8 @@ export const useQAWorkflow = () => {
   const setView = (view: AppState['currentView']) => dispatch({ type: 'SET_VIEW', payload: view });
   const setCloudConfig = (config: CloudinaryConfig) => dispatch({ type: 'SET_CLOUD_CONFIG', payload: config });
   
+  // Upload Report (Markdown)
   const handleCloudUpload = async (manual: boolean = false, currentReportContent?: string) => {
-      // Implementation for Report Upload (Markdown)
       const content = currentReportContent || state.progressReport;
       if (!content.trim()) return alert("No report to upload.");
       
@@ -238,12 +252,12 @@ export const useQAWorkflow = () => {
       }
   };
 
+  // Upload Logs (Text)
   const handleLogUpload = async () => {
       if (state.logs.length === 0) return alert("No logs to upload.");
       
       addLog(AgentRole.QA_LEAD, "Exporting System Logs to Cloudinary...", 'info');
       
-      // Format Logs as Text
       const logContent = state.logs.map(log => {
           const time = new Date(log.timestamp).toISOString();
           return `[${time}] [${log.role}] ${log.type.toUpperCase()}: ${log.message}`;
@@ -260,8 +274,12 @@ export const useQAWorkflow = () => {
       }
   };
 
-  // --- WORKFLOW STEPS ---
+  // --- CORE WORKFLOW LOGIC (ลำดับการทำงานหลัก) ---
 
+  /**
+   * STEP 1: ANALYSIS
+   * เรียก Architect Agent มาวิเคราะห์โครงสร้างโค้ด
+   */
   const startAnalysis = async (providedCode?: string, repoName?: string) => {
     const codeToAnalyze = providedCode || state.codeContext;
     const activeRepoName = repoName || state.currentRepoName || 'Unknown Repository';
@@ -278,6 +296,7 @@ export const useQAWorkflow = () => {
       dispatch({ type: 'SET_SUMMARY', payload: summary });
       addLog(AgentRole.ARCHITECT, "Structural Summary Completed.", 'success');
       
+      // Auto Save ลง Catalog ทันทีที่วิเคราะห์เสร็จ
       const lines = summary.split('\n');
       const titleLine = lines.find(l => l.trim().startsWith('# '));
       let friendlyName = activeRepoName.split('/').pop() || activeRepoName;
@@ -307,6 +326,10 @@ export const useQAWorkflow = () => {
     }
   };
 
+  /**
+   * STEP 2: MISSION PLANNING
+   * เรียก QA Lead สร้าง Test Plan จากผลวิเคราะห์
+   */
   const startMission = async () => {
       if (!state.functionSummary) return alert("Please run analysis first.");
       
@@ -325,14 +348,20 @@ export const useQAWorkflow = () => {
       }
   };
 
+  /**
+   * STEP 3: EXECUTION
+   * เรียก Tester Agent มารันเทสทีละข้อ
+   */
   const startExecution = async (tasksToRun: Task[]) => {
     dispatch({ type: 'SET_STEP', payload: 'TESTING' });
     addLog(AgentRole.TESTER, "Executing Test Protocol...", 'info');
     let failureCount = 0;
     
     for (const task of tasksToRun) {
+      // 3.1 เปลี่ยนสถานะเป็น Running
       dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.RUNNING } } });
       try {
+        // 3.2 เรียก AI จำลองการเทส
         const result = await GeminiService.executeTestSimulation(state.codeContext, task, state.progressReport);
         if (result.passed) {
           dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.PASSED, resultLog: result.reason } } });
@@ -345,6 +374,7 @@ export const useQAWorkflow = () => {
           await updateReport("TEST_FAIL", `Task ${task.id}: ${result.reason}`);
         }
       } catch (e) { addLog(AgentRole.TESTER, `Task ${task.id}: ERROR`, 'error'); }
+      // หน่วงเวลาเล็กน้อยเพื่อไม่ให้ดูเร็วจนเกินไป
       await new Promise(r => setTimeout(r, 200)); 
     }
 
@@ -357,6 +387,10 @@ export const useQAWorkflow = () => {
     }
   };
 
+  /**
+   * STEP 4: FIXING
+   * เรียก Fixer Agent มาแก้บั๊กเฉพาะข้อที่ไม่ผ่าน
+   */
   const startFixing = async () => {
     dispatch({ type: 'SET_STEP', payload: 'FIXING' });
     const failedTasks = state.tasks.filter(t => t.status === TaskStatus.FAILED);
@@ -373,10 +407,15 @@ export const useQAWorkflow = () => {
        } catch (e) { addLog(AgentRole.FIXER, `Fix generation failed for ${task.id}`, 'error'); }
     }
     
+    // อัพเดทโค้ดและเริ่มรอบใหม่
     dispatch({ type: 'SET_CODE', payload: newCode });
     checkRegression();
   };
 
+  /**
+   * STEP 5: REGRESSION CHECK
+   * วนกลับไปเทสใหม่ (Re-Test)
+   */
   const checkRegression = async () => {
     if (state.currentCycle >= state.maxCycles) {
       addLog(AgentRole.QA_LEAD, "Maximum fix cycles reached.", 'error');
@@ -387,6 +426,7 @@ export const useQAWorkflow = () => {
     dispatch({ type: 'INCREMENT_CYCLE' });
     addLog(AgentRole.QA_LEAD, `Starting Regression Cycle ${state.currentCycle}...`, 'warning');
     
+    // Reset Tasks เพื่อรันใหม่
     const resetTasks = state.tasks.map(t => ({ ...t, status: TaskStatus.PENDING, resultLog: undefined, failureReason: undefined }));
     dispatch({ type: 'SET_TASKS', payload: resetTasks });
     setTimeout(() => startExecution(resetTasks), 1500);
