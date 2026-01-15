@@ -123,8 +123,8 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
 };
 
 /**
- * 3. TESTER AGENT (Uses Smart Context)
- * ตัด Code ให้เหลือเฉพาะที่เกี่ยวข้องก่อนส่งให้ Tester
+ * 3. TESTER AGENT (Uses Smart Context & Data Mocking)
+ * Updated: เพิ่มคำสั่งให้ AI Mock Data (เช่น รูปภาพ, API Response) เองได้
  */
 export const executeTestSimulation = async (fullCode: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string }> => {
   const ai = getAI();
@@ -134,7 +134,7 @@ export const executeTestSimulation = async (fullCode: string, task: Task, curren
 
   const prompt = `
     Role: QA Tester (Thai Language).
-    Task: Execute Mental Simulation for Task: "${task.description}".
+    Task: Execute "Mental Simulation" for Task: "${task.description}".
     
     History:
     ${currentReport}
@@ -145,12 +145,15 @@ export const executeTestSimulation = async (fullCode: string, task: Task, curren
     ${contextCode}
 
     Instructions:
-    1. Simulate execution.
-    2. Check against Expected Result.
-    3. **Response MUST be in THAI**.
+    1. **MOCK DATA**: If the task involves user input (e.g., uploading a file, filling a form), IMAGINE you created a valid mock object.
+       - Example: If testing photo upload, assume you created 'const mockFile = { name: "test.jpg", type: "image/jpeg", size: 1024 }'.
+    2. **MOCK API**: If the code calls an external API (like Cloudinary, Firebase), DO NOT fail because you cannot reach the internet. 
+       - Assume the API returns a standard Success (200 OK) or Error (400/500) based on what you are testing.
+    3. **SIMULATE LOGIC**: Trace the code execution flow step-by-step using these mock inputs.
+    4. **VALIDATE**: compare the simulated outcome with the Expected Result.
 
     Output JSON:
-    { "passed": boolean, "reason": "Technical explanation in Thai" }
+    { "passed": boolean, "reason": "Technical explanation in Thai (Mention what data was mocked)" }
   `;
 
   const response = await ai.models.generateContent({

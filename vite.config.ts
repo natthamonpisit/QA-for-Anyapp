@@ -14,7 +14,8 @@ export default defineConfig(({ mode }) => {
         ...env
       }),
     },
-    // Server Configuration for WebContainer support (Point C)
+    // Server Configuration for WebContainer support
+    // These headers allow the browser to use SharedArrayBuffer, which Node.js in the browser needs.
     server: {
       headers: {
         'Cross-Origin-Embedder-Policy': 'require-corp',
