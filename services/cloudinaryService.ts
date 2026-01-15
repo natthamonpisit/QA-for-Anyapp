@@ -4,7 +4,15 @@ export interface CloudinaryConfig {
   uploadPreset: string;
 }
 
-export const uploadReport = async (content: string, config: CloudinaryConfig, publicId?: string): Promise<string> => {
+/**
+ * Generic upload function for text-based files (Markdown, TXT, JSON, etc.)
+ */
+export const uploadFile = async (
+  content: string, 
+  config: CloudinaryConfig, 
+  filename: string, 
+  mimeType: string = 'text/plain'
+): Promise<string> => {
   if (!config.cloudName || !config.uploadPreset) {
     throw new Error("Missing Cloudinary Configuration");
   }
@@ -12,19 +20,16 @@ export const uploadReport = async (content: string, config: CloudinaryConfig, pu
   const url = `https://api.cloudinary.com/v1_1/${config.cloudName}/upload`;
   
   // Create a file blob
-  const blob = new Blob([content], { type: 'text/markdown' });
-  // Use publicId if provided to attempt overwrite (requires preset settings), otherwise timestamp
-  const filename = publicId ? `${publicId}.md` : `qa_report_${Date.now()}.md`;
+  const blob = new Blob([content], { type: mimeType });
   const file = new File([blob], filename);
 
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', config.uploadPreset);
-  formData.append('resource_type', 'raw'); // 'raw' is best for text/md files
+  formData.append('resource_type', 'raw'); // 'raw' is best for text/md/json files
   
-  if (publicId) {
-      formData.append('public_id', publicId);
-  }
+  // Note: We don't force public_id here to allow Cloudinary to handle duplicates or versioning
+  // unless we specifically want to overwrite. For logs, unique timestamps are better.
 
   try {
     const response = await fetch(url, {
@@ -43,4 +48,10 @@ export const uploadReport = async (content: string, config: CloudinaryConfig, pu
     console.error("Cloudinary Upload Error:", error);
     throw error;
   }
+};
+
+// Wrapper for backward compatibility if needed, specifically for Report
+export const uploadReport = async (content: string, config: CloudinaryConfig, publicId?: string): Promise<string> => {
+    const filename = publicId ? `${publicId}.md` : `qa_report_${Date.now()}.md`;
+    return uploadFile(content, config, filename, 'text/markdown');
 };

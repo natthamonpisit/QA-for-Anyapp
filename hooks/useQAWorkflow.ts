@@ -2,6 +2,7 @@
 import { useReducer, useEffect } from 'react';
 import { AppState, AgentRole, TaskStatus, Task, LogEntry, CloudinaryConfig, RepoCatalogItem } from '../types';
 import * as GeminiService from '../services/geminiService';
+import * as CloudinaryService from '../services/cloudinaryService';
 import { CONFIG, INITIAL_REPORT_TEMPLATE } from '../config';
 
 // --- Reducer & Types ---
@@ -44,8 +45,8 @@ type Action =
   | { type: 'CLEAR_SESSION' }
   | { type: 'RESTORE_STATE'; payload: AppState }
   | { type: 'SAVE_TO_CATALOG'; payload: RepoCatalogItem }
-  | { type: 'SNAPSHOT_TO_CATALOG' } // New Action: Save full state
-  | { type: 'LOAD_SESSION'; payload: Partial<AppState> }; // New Action: Load full state
+  | { type: 'SNAPSHOT_TO_CATALOG' } 
+  | { type: 'LOAD_SESSION'; payload: Partial<AppState> }; 
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -99,7 +100,6 @@ function reducer(state: AppState, action: Action): AppState {
             const existingIndex = state.repoCatalog.findIndex(item => item.id === action.payload.id);
             let newCatalog = [...state.repoCatalog];
             if (existingIndex >= 0) {
-                // Keep existing savedState if new payload doesn't have it
                 const existingState = newCatalog[existingIndex].savedState;
                 newCatalog[existingIndex] = { ...action.payload, savedState: action.payload.savedState || existingState };
             } else {
@@ -109,9 +109,8 @@ function reducer(state: AppState, action: Action): AppState {
         }
     case 'SNAPSHOT_TO_CATALOG':
         {
-            if (!state.currentRepoName) return state; // Can't save without ID
+            if (!state.currentRepoName) return state; 
             
-            // Create snapshot of current session
             const snapshot: Partial<AppState> = {
                 codeContext: state.codeContext,
                 functionSummary: state.functionSummary,
@@ -121,21 +120,18 @@ function reducer(state: AppState, action: Action): AppState {
                 currentCycle: state.currentCycle,
                 workflowStep: state.workflowStep,
                 currentRepoName: state.currentRepoName,
-                // Don't save isProcessing, force reset on load
             };
 
             const existingIndex = state.repoCatalog.findIndex(item => item.id === state.currentRepoName);
             let newCatalog = [...state.repoCatalog];
             
             if (existingIndex >= 0) {
-                // Update existing item with new snapshot
                 newCatalog[existingIndex] = {
                     ...newCatalog[existingIndex],
                     lastAnalyzed: new Date().toISOString(),
                     savedState: snapshot
                 };
             } else {
-                // Create new item if somehow missing (fallback)
                 newCatalog = [{
                     id: state.currentRepoName,
                     name: state.currentRepoName,
@@ -151,10 +147,8 @@ function reducer(state: AppState, action: Action): AppState {
         return {
             ...state,
             ...action.payload,
-            // Ensure these are reset/safe
             isProcessing: false,
             workflowStep: action.payload.workflowStep === 'TESTING' || action.payload.workflowStep === 'FIXING' ? 'IDLE' : (action.payload.workflowStep || 'IDLE'),
-            // Convert string dates back to Date objects if needed (handled in hook but good safety)
             logs: (action.payload.logs || []).map(l => ({
                 ...l,
                 timestamp: new Date(l.timestamp)
@@ -179,12 +173,6 @@ export const useQAWorkflow = () => {
         const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
-            // We DO NOT parse logs here for the session because we are clearing session on load.
-            // We only care about repoCatalog.
-            
-            // However, we need to ensure dates inside repoCatalog.savedState.logs are string-safe if we ever access them directly.
-            // But they will be re-hydrated when LOAD_SESSION is called.
-            
             dispatch({ 
                 type: 'RESTORE_STATE', 
                 payload: { 
@@ -236,7 +224,40 @@ export const useQAWorkflow = () => {
   const setCloudConfig = (config: CloudinaryConfig) => dispatch({ type: 'SET_CLOUD_CONFIG', payload: config });
   
   const handleCloudUpload = async (manual: boolean = false, currentReportContent?: string) => {
-     // implementation omitted
+      // Implementation for Report Upload (Markdown)
+      const content = currentReportContent || state.progressReport;
+      if (!content.trim()) return alert("No report to upload.");
+      
+      addLog(AgentRole.QA_LEAD, "Uploading Progress Report to Cloudinary...", 'info');
+      try {
+          const url = await CloudinaryService.uploadReport(content, state.cloudinaryConfig);
+          addLog(AgentRole.QA_LEAD, `Report Uploaded: ${url}`, 'success');
+          if (manual) window.open(url, '_blank');
+      } catch (error: any) {
+          addLog(AgentRole.QA_LEAD, `Upload Failed: ${error.message}`, 'error');
+      }
+  };
+
+  const handleLogUpload = async () => {
+      if (state.logs.length === 0) return alert("No logs to upload.");
+      
+      addLog(AgentRole.QA_LEAD, "Exporting System Logs to Cloudinary...", 'info');
+      
+      // Format Logs as Text
+      const logContent = state.logs.map(log => {
+          const time = new Date(log.timestamp).toISOString();
+          return `[${time}] [${log.role}] ${log.type.toUpperCase()}: ${log.message}`;
+      }).join('\n');
+
+      const filename = `qa_logs_${Date.now()}.txt`;
+
+      try {
+          const url = await CloudinaryService.uploadFile(logContent, state.cloudinaryConfig, filename, 'text/plain');
+          addLog(AgentRole.QA_LEAD, `Logs Exported Successfully: ${url}`, 'success');
+          window.open(url, '_blank');
+      } catch (error: any) {
+          addLog(AgentRole.QA_LEAD, `Log Export Failed: ${error.message}`, 'error');
+      }
   };
 
   // --- WORKFLOW STEPS ---
@@ -383,6 +404,7 @@ export const useQAWorkflow = () => {
       setView,
       setCloudConfig,
       handleCloudUpload,
+      handleLogUpload, // Export log upload action
       startAnalysis, // Step 1
       startMission   // Step 2
     }

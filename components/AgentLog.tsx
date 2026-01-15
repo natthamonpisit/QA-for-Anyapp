@@ -1,13 +1,14 @@
 
 import React, { useEffect, useRef } from 'react';
 import { LogEntry, AgentRole } from '../types';
-import { Terminal, Bot, ChevronRight } from 'lucide-react';
+import { Terminal, Bot, ChevronRight, UploadCloud } from 'lucide-react';
 
 interface AgentLogProps {
   logs: LogEntry[];
+  onUpload?: () => void; // New prop for upload handler
 }
 
-const AgentLog: React.FC<AgentLogProps> = ({ logs }) => {
+const AgentLog: React.FC<AgentLogProps> = ({ logs, onUpload }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,10 +34,21 @@ const AgentLog: React.FC<AgentLogProps> = ({ logs }) => {
            <Terminal className="w-3.5 h-3.5 text-slate-500" />
            <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest">System_Log</span>
         </div>
-        <div className="flex gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-slate-800"></div>
-            <div className="w-2 h-2 rounded-full bg-slate-800"></div>
-            <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+        <div className="flex items-center gap-3">
+             {onUpload && (
+                 <button 
+                    onClick={onUpload} 
+                    className="text-slate-500 hover:text-blue-400 transition-colors"
+                    title="Export Logs to Cloud (.txt)"
+                 >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                 </button>
+             )}
+            <div className="flex gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+                <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+                <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+            </div>
         </div>
       </div>
       
