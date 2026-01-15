@@ -1,0 +1,4 @@
+
+{
+  "installCommand": "npm install --no-package-lock --no-save --legacy-peer-deps"
+}
