@@ -1,7 +1,7 @@
 
 {
   "framework": "vite",
-  "installCommand": "rm -rf package-lock.json node_modules && npm install --legacy-peer-deps",
+  "installCommand": "rm -rf node_modules package-lock.json yarn.lock pnpm-lock.yaml && npm install --no-package-lock --no-save --legacy-peer-deps",
   "buildCommand": "npm run build",
   "outputDirectory": "dist"
 }
