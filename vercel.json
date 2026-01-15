@@ -1,4 +1,7 @@
 
 {
-  "installCommand": "npm install --no-package-lock --no-save --legacy-peer-deps"
+  "framework": "vite",
+  "installCommand": "rm -rf package-lock.json node_modules && npm install --legacy-peer-deps",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist"
 }
