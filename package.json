@@ -5,13 +5,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "preinstall": "rm -rf package-lock.json",
+    "preinstall": "rm -rf package-lock.json || true",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "latest",
+    "@google/genai": "*",
     "lucide-react": "^0.300.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
