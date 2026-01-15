@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Task, TaskStatus } from '../types';
-import { CheckCircle2, XCircle, Activity, Layers } from 'lucide-react';
+import { CheckCircle, XCircle, Activity, Layers, Bug, Zap } from 'lucide-react';
 
 interface DashboardStatsProps {
   tasks: Task[];
@@ -11,49 +12,60 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ tasks, currentCycle }) 
   const total = tasks.length;
   const passed = tasks.filter(t => t.status === TaskStatus.PASSED).length;
   const failed = tasks.filter(t => t.status === TaskStatus.FAILED).length;
-  const pending = tasks.filter(t => t.status === TaskStatus.PENDING || t.status === TaskStatus.RUNNING).length;
   
   const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      <div className="bg-slate-800/50 border border-slate-700/50 p-4 rounded-xl flex items-center gap-4 shadow-lg backdrop-blur-sm">
-        <div className="p-3 bg-blue-500/10 rounded-lg">
-          <Layers className="w-6 h-6 text-blue-400" />
-        </div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300">
         <div>
-          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Total Tasks</p>
-          <h3 className="text-2xl font-bold text-slate-100">{total} <span className="text-sm text-slate-500 font-normal">tests</span></h3>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">Coverage</p>
+          <div className="flex items-baseline gap-2">
+             <h3 className="text-2xl font-bold text-white font-mono">{total}</h3>
+             <span className="text-xs text-slate-500">tasks</span>
+          </div>
+        </div>
+        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/20 group-hover:text-blue-400 text-slate-500 transition-colors">
+          <Layers className="w-5 h-5" />
         </div>
       </div>
 
-      <div className="bg-slate-800/50 border border-slate-700/50 p-4 rounded-xl flex items-center gap-4 shadow-lg backdrop-blur-sm">
-        <div className="p-3 bg-green-500/10 rounded-lg">
-          <CheckCircle2 className="w-6 h-6 text-green-400" />
-        </div>
+      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300 border-l-4 border-l-green-500/50">
         <div>
-          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Passed</p>
-          <h3 className="text-2xl font-bold text-slate-100">{passed} <span className="text-sm text-green-500/70 font-mono">({passRate}%)</span></h3>
+          <p className="text-green-500/70 text-[10px] font-bold uppercase tracking-widest mb-1">Success Rate</p>
+          <div className="flex items-baseline gap-2">
+             <h3 className="text-2xl font-bold text-slate-100 font-mono">{passRate}%</h3>
+             <span className="text-xs text-green-500/60 font-medium">({passed})</span>
+          </div>
+        </div>
+        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-green-500/20 group-hover:text-green-400 text-slate-500 transition-colors">
+          <CheckCircle className="w-5 h-5" />
         </div>
       </div>
 
-      <div className="bg-slate-800/50 border border-slate-700/50 p-4 rounded-xl flex items-center gap-4 shadow-lg backdrop-blur-sm">
-        <div className="p-3 bg-red-500/10 rounded-lg">
-          <XCircle className="w-6 h-6 text-red-400" />
-        </div>
+      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300 border-l-4 border-l-red-500/50">
         <div>
-          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Failed / Bugs</p>
-          <h3 className="text-2xl font-bold text-slate-100">{failed} <span className="text-sm text-slate-500 font-normal">issues</span></h3>
+          <p className="text-red-500/70 text-[10px] font-bold uppercase tracking-widest mb-1">Defects</p>
+          <div className="flex items-baseline gap-2">
+             <h3 className="text-2xl font-bold text-slate-100 font-mono">{failed}</h3>
+             <span className="text-xs text-slate-500">found</span>
+          </div>
+        </div>
+        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-red-500/20 group-hover:text-red-400 text-slate-500 transition-colors">
+          <Bug className="w-5 h-5" />
         </div>
       </div>
 
-      <div className="bg-slate-800/50 border border-slate-700/50 p-4 rounded-xl flex items-center gap-4 shadow-lg backdrop-blur-sm">
-        <div className="p-3 bg-purple-500/10 rounded-lg">
-          <Activity className="w-6 h-6 text-purple-400" />
-        </div>
+      <div className="glass-panel glass-panel-hover p-4 rounded-xl flex items-center justify-between group transition-all duration-300 bg-gradient-to-br from-purple-900/10 to-transparent">
         <div>
-          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Current Cycle</p>
-          <h3 className="text-2xl font-bold text-slate-100">#{currentCycle} <span className="text-sm text-purple-400 font-normal animate-pulse">Active</span></h3>
+          <p className="text-purple-400/70 text-[10px] font-bold uppercase tracking-widest mb-1">Cycle Count</p>
+          <div className="flex items-baseline gap-2">
+             <h3 className="text-2xl font-bold text-slate-100 font-mono">#{currentCycle}</h3>
+             <span className="text-xs text-purple-500 font-medium animate-pulse">Running</span>
+          </div>
+        </div>
+        <div className="p-2.5 bg-slate-800 rounded-lg group-hover:bg-purple-500/20 group-hover:text-purple-400 text-slate-500 transition-colors">
+          <Activity className="w-5 h-5" />
         </div>
       </div>
     </div>
