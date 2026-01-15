@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search } from 'lucide-react';
+import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search, LogOut } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import TaskList from '../components/TaskList';
 import ActiveTaskMonitor from '../components/ActiveTaskMonitor';
@@ -24,9 +24,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
     <div className="min-h-screen bg-[#0f172a] text-slate-200 flex flex-col p-4 md:p-6 gap-6">
       <header className="flex flex-col md:flex-row items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-slate-400 hover:text-white cursor-pointer transition-colors" onClick={() => qaActions.setView('ONBOARDING')}>
-                 <Home className="w-5 h-5" />
-            </div>
+            <button 
+                className="flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors" 
+                onClick={() => qaActions.setView('ONBOARDING')}
+                title="Back to Project Catalog"
+            >
+                 <Home className="w-4 h-4" />
+                 <span className="text-sm font-medium">Home</span>
+            </button>
             <div className="h-6 w-px bg-slate-700 mx-1"></div>
             <div>
                 <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
@@ -37,7 +42,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
         </div>
 
         <div className="flex items-center gap-4">
-           <button onClick={() => { if(window.confirm("ต้องการล้างข้อมูลทั้งหมดหรือไม่?")) { qaActions.clearSession(); ghActions.disconnect(); } }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition-colors" title="ล้างเซสชัน"><Trash2 className="w-4 h-4" /></button>
+           <button onClick={() => { if(window.confirm("ต้องการล้างข้อมูลทั้งหมดหรือไม่?")) { qaActions.clearSession(); ghActions.disconnect(); qaActions.setView('ONBOARDING'); } }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition-colors" title="ล้างเซสชัน"><Trash2 className="w-4 h-4" /></button>
 
           <button onClick={qaActions.startMission} disabled={qaState.isProcessing || !process.env.API_KEY} className={`flex items-center gap-2 px-6 py-2.5 rounded-md font-medium transition-all shadow-lg ${qaState.isProcessing ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
             {qaState.isProcessing ? <RotateCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}

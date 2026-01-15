@@ -1,8 +1,7 @@
 
-import { useReducer, useEffect, useCallback } from 'react';
-import { AppState, AgentRole, TaskStatus, Task, LogEntry, CloudinaryConfig } from '../types';
+import { useReducer, useEffect } from 'react';
+import { AppState, AgentRole, TaskStatus, Task, LogEntry, CloudinaryConfig, RepoCatalogItem } from '../types';
 import * as GeminiService from '../services/geminiService';
-import * as CloudinaryService from '../services/cloudinaryService';
 import { CONFIG, INITIAL_REPORT_TEMPLATE } from '../config';
 
 // --- Reducer & Types ---
@@ -22,7 +21,8 @@ const defaultState: AppState = {
     cloudName: CONFIG.CLOUDINARY_CLOUD_NAME, 
     uploadPreset: CONFIG.CLOUDINARY_PRESET 
   },
-  sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`
+  sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`,
+  repoCatalog: []
 };
 
 type Action = 
@@ -40,7 +40,8 @@ type Action =
   | { type: 'SET_VIEW'; payload: AppState['currentView'] }
   | { type: 'SET_CLOUD_CONFIG'; payload: CloudinaryConfig }
   | { type: 'CLEAR_SESSION' }
-  | { type: 'RESTORE_STATE'; payload: AppState };
+  | { type: 'RESTORE_STATE'; payload: AppState }
+  | { type: 'SAVE_TO_CATALOG'; payload: RepoCatalogItem };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -81,7 +82,22 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_CLOUD_CONFIG':
       return { ...state, cloudinaryConfig: action.payload };
     case 'CLEAR_SESSION':
-      return { ...defaultState, sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}` };
+      // Clear everything BUT the catalog and cloud config
+      return { 
+          ...defaultState, 
+          sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`,
+          repoCatalog: state.repoCatalog,
+          cloudinaryConfig: state.cloudinaryConfig
+      };
+    case 'SAVE_TO_CATALOG':
+        const existingIndex = state.repoCatalog.findIndex(item => item.id === action.payload.id);
+        let newCatalog = [...state.repoCatalog];
+        if (existingIndex >= 0) {
+            newCatalog[existingIndex] = action.payload; // Update existing
+        } else {
+            newCatalog = [action.payload, ...newCatalog]; // Add new to top
+        }
+        return { ...state, repoCatalog: newCatalog };
     case 'RESTORE_STATE':
         return action.payload;
     default:
@@ -102,6 +118,9 @@ export const useQAWorkflow = () => {
         if (saved) {
             const parsed = JSON.parse(saved);
             if (parsed.logs) parsed.logs = parsed.logs.map((l: any) => ({ ...l, timestamp: new Date(l.timestamp) }));
+            
+            // IMPORTANT: Restore, but ensure we start at ONBOARDING unless explicitly needed. 
+            // We want the user to see the catalog first.
             dispatch({ 
                 type: 'RESTORE_STATE', 
                 payload: { 
@@ -109,7 +128,10 @@ export const useQAWorkflow = () => {
                     ...parsed, 
                     isProcessing: false,
                     workflowStep: parsed.workflowStep === 'TESTING' ? 'IDLE' : parsed.workflowStep,
-                    cloudinaryConfig: parsed.cloudinaryConfig?.cloudName ? parsed.cloudinaryConfig : defaultState.cloudinaryConfig
+                    // Force Onboarding view on reload so they see the menu/catalog
+                    currentView: 'ONBOARDING', 
+                    // Ensure catalog is loaded
+                    repoCatalog: parsed.repoCatalog || [] 
                 } 
             });
         }
@@ -120,6 +142,7 @@ export const useQAWorkflow = () => {
     // Save
     const timeout = setTimeout(() => {
         try {
+            // We save everything, including the catalog
             const { isProcessing, ...stateToSave } = state;
             localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(stateToSave));
         } catch (e) { console.error("Save state failed", e); }
@@ -148,17 +171,12 @@ export const useQAWorkflow = () => {
   const setCloudConfig = (config: CloudinaryConfig) => dispatch({ type: 'SET_CLOUD_CONFIG', payload: config });
   
   const handleCloudUpload = async (manual: boolean = false, currentReportContent?: string) => {
-    // Implementation kept same as before, simplified for this snippet
-    // ... existing upload logic
+     // implementation omitted for brevity
   };
 
   // --- WORKFLOW STEPS ---
 
-  /**
-   * STEP 1: Architect Agent analyzes the code structure.
-   * Does NOT start the full cycle.
-   */
-  const startAnalysis = async (providedCode?: string) => {
+  const startAnalysis = async (providedCode?: string, repoName?: string) => {
     const codeToAnalyze = providedCode || state.codeContext;
     if (!process.env.API_KEY) return alert("API_KEY missing");
     if (!codeToAnalyze.trim()) return alert("No code context");
@@ -171,16 +189,28 @@ export const useQAWorkflow = () => {
       const summary = await GeminiService.analyzeCode(codeToAnalyze);
       dispatch({ type: 'SET_SUMMARY', payload: summary });
       addLog(AgentRole.ARCHITECT, "Structural Summary Completed.", 'success');
-      dispatch({ type: 'SET_STEP', payload: 'IDLE' }); // Go back to IDLE so user can review
+      
+      // Auto Save to Catalog
+      if (repoName) {
+        dispatch({
+            type: 'SAVE_TO_CATALOG',
+            payload: {
+                id: repoName,
+                name: repoName.split('/').pop() || repoName,
+                description: `Analyzed on ${new Date().toLocaleDateString()}`,
+                lastAnalyzed: new Date().toISOString(),
+                summarySnippet: summary.substring(0, 150) + "..."
+            }
+        });
+      }
+
+      dispatch({ type: 'SET_STEP', payload: 'IDLE' }); 
     } catch (error) {
       addLog(AgentRole.ARCHITECT, "Analysis Failed.", 'error');
       dispatch({ type: 'FINISH_PROCESSING' });
     }
   };
 
-  /**
-   * STEP 2: Start the actual QA Mission (Planning -> Executing -> Fixing)
-   */
   const startMission = async () => {
       if (!state.functionSummary) return alert("Please run analysis first.");
       

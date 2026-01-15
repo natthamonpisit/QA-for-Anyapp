@@ -36,17 +36,26 @@ export interface CloudinaryConfig {
   uploadPreset: string;
 }
 
+export interface RepoCatalogItem {
+  id: string; // repo full name e.g., "user/repo"
+  name: string;
+  description: string;
+  lastAnalyzed: string; // ISO Date
+  summarySnippet: string;
+}
+
 export interface AppState {
   codeContext: string;
   functionSummary: string;
   tasks: Task[];
   logs: LogEntry[];
-  progressReport: string; // The "scratchpad"
+  progressReport: string; 
   isProcessing: boolean;
   currentCycle: number;
   maxCycles: number;
   workflowStep: 'IDLE' | 'ANALYZING' | 'PLANNING' | 'TESTING' | 'FIXING' | 'REGRESSION_CHECK' | 'COMPLETED';
-  currentView: 'ONBOARDING' | 'DASHBOARD'; // State to control the active view
+  currentView: 'ONBOARDING' | 'DASHBOARD'; 
   cloudinaryConfig: CloudinaryConfig; 
-  sessionId: string; // New: To identify the cloud file for this session
+  sessionId: string; 
+  repoCatalog: RepoCatalogItem[]; // New: History of projects
 }
