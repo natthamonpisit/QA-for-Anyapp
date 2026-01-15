@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BrainCircuit, Github, RotateCw, Key, CheckCheck, LogOut, Lock, Folder, Terminal, ArrowRight } from 'lucide-react';
+import { BrainCircuit, Github, RotateCw, Key, CheckCheck, LogOut, Lock, Folder, Terminal, ArrowRight, ExternalLink, Copy } from 'lucide-react';
 import FileBrowser from '../components/FileBrowser';
 
 interface OnboardingViewProps {
@@ -10,6 +10,12 @@ interface OnboardingViewProps {
 
 const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed }) => {
   const { state, actions } = gh;
+
+  const openGitHubTokenPage = () => {
+    // Direct link to create a token with 'repo' scope selected automatically
+    const url = 'https://github.com/settings/tokens/new?description=QA-Agent-Session&scopes=repo';
+    window.open(url, '_blank');
+  };
 
   return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-grid-pattern">
@@ -85,24 +91,45 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed }) => {
                      </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50 space-y-4 animate-fadeIn">
-                     <div className="flex items-center justify-between">
-                         <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Key className="w-4 h-4 text-yellow-500" /> Personal Access Token</h3>
+                  <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50 space-y-5 animate-fadeIn">
+                     <div className="flex items-center justify-between border-b border-slate-700/50 pb-3">
+                         <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Key className="w-4 h-4 text-yellow-500" /> Access Token</h3>
+                         <button onClick={() => actions.setIsTokenMode(false)} className="text-xs text-slate-500 hover:text-slate-300">Back</button>
                      </div>
-                     <p className="text-xs text-slate-500">Token requires 'repo' scope for private repositories.</p>
-                     <input 
-                        type="password" 
-                        className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-sm px-4 py-2.5 rounded-lg focus:border-blue-500 focus:outline-none" 
-                        placeholder="ghp_xxxxxxxxxxxx" 
-                        value={state.githubToken} 
-                        onChange={(e) => actions.setGithubToken(e.target.value)} 
-                     />
-                     <div className="flex gap-3 pt-2">
-                        <button onClick={() => actions.setIsTokenMode(false)} className="flex-1 text-sm text-slate-400 hover:text-white py-2">Cancel</button>
-                        <button onClick={actions.connect} disabled={state.isLoading} className="flex-1 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2">
-                            {state.isLoading ? <RotateCw className="w-4 h-4 animate-spin" /> : 'Connect'}
+
+                     {/* Step 1: Create Token */}
+                     <div className="space-y-2">
+                        <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Step 1: Get Token</label>
+                        <button 
+                            onClick={openGitHubTokenPage}
+                            className="w-full flex items-center justify-between bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-slate-500 text-slate-300 px-3 py-2 rounded text-xs transition-colors group"
+                        >
+                            <span className="flex items-center gap-2"><Github className="w-3.5 h-3.5"/> Create Token on GitHub</span>
+                            <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100" />
                         </button>
+                        <p className="text-[10px] text-slate-500">Link opens GitHub with correct 'repo' scopes pre-selected.</p>
                      </div>
+
+                     {/* Step 2: Paste Token */}
+                     <div className="space-y-2">
+                        <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Step 2: Paste Here</label>
+                        <div className="relative">
+                            <input 
+                                type="password" 
+                                className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-sm pl-3 pr-10 py-2.5 rounded-lg focus:border-green-500 focus:outline-none transition-colors" 
+                                placeholder="ghp_..." 
+                                value={state.githubToken} 
+                                onChange={(e) => actions.setGithubToken(e.target.value)} 
+                            />
+                            <div className="absolute right-3 top-2.5 text-slate-600">
+                                <Key className="w-4 h-4" />
+                            </div>
+                        </div>
+                     </div>
+                     
+                     <button onClick={actions.connect} disabled={state.isLoading || !state.githubToken} className="w-full bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2 mt-2 shadow-lg shadow-green-900/20">
+                        {state.isLoading ? <RotateCw className="w-4 h-4 animate-spin" /> : 'Connect & Analyze'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -111,7 +138,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed }) => {
                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800">
                         <div className="flex items-center gap-2">
                             <div className="bg-green-500/10 p-1.5 rounded-full"><CheckCheck className="w-4 h-4 text-green-400" /></div>
-                            <span className="text-slate-200 font-medium text-sm">Connected</span>
+                            <span className="text-slate-200 font-medium text-sm">Connected as {state.userRepos[0]?.owner?.login || 'User'}</span>
                         </div>
                         <button onClick={actions.disconnect} className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 transition-colors"><LogOut className="w-3 h-3" /> Sign out</button>
                     </div>
