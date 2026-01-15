@@ -1,5 +1,7 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { AgentRole, Task } from "../types";
+import { CONFIG } from "../config";
 
 // Helper to ensure API Key exists
 const getAI = () => {
@@ -8,8 +10,6 @@ const getAI = () => {
   }
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
-
-const MODEL_NAME = 'gemini-3-flash-preview'; // Speed & Cost efficient
 
 /**
  * 1. ARCHITECT AGENT
@@ -35,7 +35,7 @@ export const analyzeCode = async (code: string): Promise<string> => {
   `;
 
   const response = await ai.models.generateContent({
-    model: MODEL_NAME,
+    model: CONFIG.GEMINI_MODEL,
     contents: prompt,
   });
 
@@ -74,7 +74,7 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
   `;
 
   const response = await ai.models.generateContent({
-    model: MODEL_NAME,
+    model: CONFIG.GEMINI_MODEL,
     contents: prompt,
     config: { responseMimeType: "application/json" }
   });
@@ -94,10 +94,6 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
  */
 export const executeTestSimulation = async (code: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string }> => {
   const ai = getAI();
-  
-  // Optimization: If code is massive, we rely on the specific file headers we added (// === FILE: ...)
-  // Ideally, we'd extract only relevant chunks, but Gemini Flash has a large context window (1M).
-  // We just ensure we pass the "Mindset" from the report.
   
   const prompt = `
     Role: QA Tester.
@@ -122,7 +118,7 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
   `;
 
   const response = await ai.models.generateContent({
-    model: MODEL_NAME,
+    model: CONFIG.GEMINI_MODEL,
     contents: prompt,
     config: { responseMimeType: "application/json" }
   });
@@ -160,19 +156,9 @@ export const generateFix = async (code: string, task: Task, currentReport: strin
   `;
 
   const response = await ai.models.generateContent({
-    model: MODEL_NAME,
+    model: CONFIG.GEMINI_MODEL,
     contents: prompt,
   });
 
   return response.text || "// Failed to generate fix.";
-};
-
-/**
- * UTILITY: Update Progress Report (The "Memory")
- */
-export const updateProgressReport = async (currentReport: string, action: string, detail: string): Promise<string> => {
-  // We append simply to save latency, but we could use AI to summarize if it gets too long.
-  // For now, structured appending is safest for preserving exact history.
-  const timestamp = new Date().toLocaleTimeString();
-  return currentReport + `\n[${timestamp}] [${action.toUpperCase()}] ${detail}`;
 };
