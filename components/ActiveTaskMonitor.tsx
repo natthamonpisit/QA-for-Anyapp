@@ -20,8 +20,8 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks }) => {
              <div className="p-4 bg-slate-800/50 rounded-full mb-4 border border-slate-700 shadow-xl shadow-black/50">
                 <Cpu className="w-8 h-8 text-slate-600" />
              </div>
-             <h3 className="text-slate-400 font-medium text-sm tracking-wider uppercase">System Idle</h3>
-             <p className="text-slate-600 text-xs mt-1 font-mono">Waiting for command execution protocol...</p>
+             <h3 className="text-slate-400 font-medium text-sm tracking-wider uppercase">ระบบว่าง</h3>
+             <p className="text-slate-600 text-xs mt-1 font-mono">รอคำสั่งเริ่มการทดสอบ...</p>
          </div>
       </div>
     );
@@ -79,7 +79,7 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks }) => {
                     <div className="flex gap-3">
                          <div className="w-0.5 bg-red-800/50"></div>
                          <div className="flex-1">
-                            <h4 className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-1">Root Cause Analysis</h4>
+                            <h4 className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-1">สาเหตุความผิดพลาด (Root Cause)</h4>
                             <p className="text-xs text-red-200/70">{displayTask.failureReason}</p>
                          </div>
                     </div>
@@ -87,7 +87,7 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks }) => {
                          <div className="flex gap-3">
                              <div className="w-0.5 bg-green-800/50"></div>
                              <div className="flex-1">
-                                <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Auto-Fix Proposal</h4>
+                                <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-1 flex items-center gap-1"><Sparkles className="w-3 h-3" /> แนวทางแก้ไข (Auto-Fix)</h4>
                                 <div className="bg-green-950/10 p-2 rounded border border-green-500/10">
                                     <pre className="text-[10px] font-mono text-green-400 overflow-x-auto whitespace-pre-wrap">{displayTask.fixSuggestion.substring(0, 150)}...</pre>
                                 </div>

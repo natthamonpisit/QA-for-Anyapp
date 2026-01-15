@@ -37,11 +37,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
         </div>
 
         <div className="flex items-center gap-4">
-           <button onClick={() => { if(window.confirm("Clear?")) { qaActions.clearSession(); ghActions.disconnect(); } }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition-colors" title="Clear Session"><Trash2 className="w-4 h-4" /></button>
+           <button onClick={() => { if(window.confirm("ต้องการล้างข้อมูลทั้งหมดหรือไม่?")) { qaActions.clearSession(); ghActions.disconnect(); } }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition-colors" title="ล้างเซสชัน"><Trash2 className="w-4 h-4" /></button>
 
           <button onClick={qaActions.startMission} disabled={qaState.isProcessing || !process.env.API_KEY} className={`flex items-center gap-2 px-6 py-2.5 rounded-md font-medium transition-all shadow-lg ${qaState.isProcessing ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
             {qaState.isProcessing ? <RotateCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-            {qaState.isProcessing ? 'Working...' : 'Resume QA'}
+            {qaState.isProcessing ? 'กำลังทำงาน...' : 'เริ่มภารกิจ QA'}
           </button>
         </div>
       </header>
@@ -62,9 +62,9 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
                 {/* Code Context / File Browser Toggle */}
                 <div className="h-1/3 bg-slate-900 rounded-lg border border-slate-700 flex flex-col overflow-hidden">
                     <div className="bg-slate-800 p-2 border-b border-slate-700 flex justify-between items-center">
-                        <span className="text-xs font-semibold text-slate-400 flex items-center gap-2"><FileCode className="w-3 h-3" /> Context</span>
+                        <span className="text-xs font-semibold text-slate-400 flex items-center gap-2"><FileCode className="w-3 h-3" /> Code Context</span>
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-slate-600">{estimatedTokens.toLocaleString()} tokens</span>
+                            <span className="text-[10px] text-slate-600">~{estimatedTokens.toLocaleString()} tokens</span>
                             <button onClick={() => ghActions.setShowBrowser(!ghState.showBrowser)} className="text-[10px] text-blue-400 hover:text-white"><Search className="w-3 h-3" /></button>
                         </div>
                     </div>

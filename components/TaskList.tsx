@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Task, TaskStatus } from '../types';
 import { CheckCircle, XCircle, CircleDashed, Loader2, ListTodo, AlertTriangle } from 'lucide-react';
@@ -13,10 +14,10 @@ const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
       <div className="bg-slate-800/80 backdrop-blur p-3 border-b border-slate-700 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">
             <ListTodo className="w-4 h-4 text-blue-400" />
-            <h2 className="font-semibold text-slate-200 text-sm">Mission Tasks</h2>
+            <h2 className="font-semibold text-slate-200 text-sm">รายการทดสอบ (Test Tasks)</h2>
         </div>
         <span className="text-[10px] font-mono bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
-            {tasks.length} Total
+            {tasks.length} รายการ
         </span>
       </div>
 
@@ -25,7 +26,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
         {tasks.length === 0 && (
             <div className="flex flex-col items-center justify-center h-32 text-slate-500 text-xs gap-2">
                 <CircleDashed className="w-6 h-6 opacity-50" />
-                <span>No tasks generated yet.</span>
+                <span>ยังไม่มีรายการทดสอบ</span>
             </div>
         )}
 

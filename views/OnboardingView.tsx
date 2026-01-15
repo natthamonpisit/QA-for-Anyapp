@@ -17,31 +17,10 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
     window.open(url, '_blank');
   };
 
-  const handleRepoClick = async (repo: any) => {
-      // 1. Auto clone
-      await ghActions.autoClone(repo);
-  };
-
-  // Effect to trigger analysis once code is imported
-  useEffect(() => {
-    if (ghState.repoInput && !ghState.isLoading && !qaState.functionSummary && qaState.workflowStep === 'IDLE' && !qaState.codeContext) {
-        // Wait for the clone to finish, but we need to know when clone finished.
-        // We can check if codeContext needs update? 
-        // Better: passing the result from clone directly in handleRepoClick is harder due to hooks.
-        // Instead, let's use a callback pattern in the next iteration or just rely on manual trigger if simpler.
-        // But the requirement is "Auto". 
-    }
-  }, [ghState.isLoading]);
-
-  // Actually, let's wrap the logic in handleRepoClick
   const selectAndAnalyze = async (repo: any) => {
       // 1. Clone
       await ghActions.autoClone(repo);
   };
-
-  // We need to bridge the gap: ghActions.autoClone calls onFilesImported prop passed in App.tsx
-  // In App.tsx: onFilesImported calls qa.actions.appendCode
-  // So when clone finishes, codeContext is updated.
   
   // Watch for codeContext changes to trigger Analysis automatically IF we are in onboarding
   useEffect(() => {
@@ -71,41 +50,41 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                 
                 {qaState.workflowStep === 'ANALYZING' || ghState.isLoading ? (
                     <div className="animate-fadeIn">
-                        <h2 className="text-xl font-bold text-white mb-2">Analyzing System</h2>
-                        <p className="text-slate-400 text-sm mb-6">Architect Agent is mapping the code structure...</p>
+                        <h2 className="text-xl font-bold text-white mb-2">กำลังวิเคราะห์ระบบ</h2>
+                        <p className="text-slate-400 text-sm mb-6">Architect Agent กำลังทำแผนผังโครงสร้าง Code...</p>
                         
                         <div className="space-y-4">
                             <div className="flex items-center gap-3 text-sm text-slate-300">
                                 <div className={`p-1.5 rounded-full ${ghState.isLoading ? 'bg-yellow-500/20 text-yellow-500 animate-pulse' : 'bg-green-500/20 text-green-500'}`}>
                                     {ghState.isLoading ? <RotateCw className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
                                 </div>
-                                <span>{ghState.isLoading ? ghState.loadingMessage || 'Fetching Files...' : 'Files Imported'}</span>
+                                <span>{ghState.isLoading ? ghState.loadingMessage || 'กำลังโหลดไฟล์...' : 'นำเข้าไฟล์เรียบร้อย'}</span>
                             </div>
                             <div className="flex items-center gap-3 text-sm text-slate-300">
                                 <div className={`p-1.5 rounded-full ${qaState.workflowStep === 'ANALYZING' ? 'bg-purple-500/20 text-purple-500 animate-pulse' : 'bg-slate-800 text-slate-600'}`}>
                                     <BrainCircuit className="w-4 h-4" />
                                 </div>
-                                <span>Generating Architecture Summary...</span>
+                                <span>สร้างสรุปโครงสร้างสถาปัตยกรรม...</span>
                             </div>
                         </div>
                     </div>
                 ) : qaState.functionSummary ? (
                     <div className="animate-fadeIn">
-                         <h2 className="text-xl font-bold text-white mb-2">Ready to Launch</h2>
-                         <p className="text-slate-400 text-sm mb-6">System analysis complete. Review the summary before starting the QA mission.</p>
+                         <h2 className="text-xl font-bold text-white mb-2">พร้อมเริ่มงาน</h2>
+                         <p className="text-slate-400 text-sm mb-6">วิเคราะห์ระบบเสร็จสมบูรณ์ กรุณาตรวจสอบสรุปด้านขวาก่อนเริ่มภารกิจ QA</p>
                          <button onClick={onProceed} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 group transition-all">
                              <Play className="w-5 h-5 fill-current" />
-                             Start QA Mission
+                             เริ่ม QA Mission!
                          </button>
                     </div>
                 ) : (
                     <div>
                         <h1 className="text-3xl font-bold text-white leading-tight mb-4">
-                            Autonomous <br/>
-                            <span className="text-blue-400">Quality Assurance</span>
+                            ระบบตรวจสอบ <br/>
+                            <span className="text-blue-400">คุณภาพอัตโนมัติ</span>
                         </h1>
                         <p className="text-slate-400 text-sm leading-relaxed">
-                            Connect your repository. The agent will auto-clone and analyze your codebase.
+                            เชื่อมต่อ Repository ของคุณ แล้วปล่อยให้ AI Agent วิเคราะห์ ทดสอบ และแก้ไขโค้ดให้อัตโนมัติ
                         </p>
                     </div>
                 )}
@@ -115,11 +94,11 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                 <div className="mt-8 space-y-4">
                     <div className="flex items-center gap-3 text-xs text-slate-500">
                         <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                        <span>Gemini 3 Flash Powered</span>
+                        <span>ขับเคลื่อนด้วย Gemini 3 Flash</span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-500">
                         <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                        <span>Secure Client-Side Execution</span>
+                        <span>ทำงานปลอดภัยแบบ Client-Side 100%</span>
                     </div>
                 </div>
              )}
@@ -133,7 +112,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800">
                         <div className="flex items-center gap-2">
                              <Terminal className="w-5 h-5 text-purple-400" />
-                             <h3 className="text-white font-semibold">Architect Summary</h3>
+                             <h3 className="text-white font-semibold">สรุปโครงสร้างโดย Architect</h3>
                         </div>
                         <span className="text-xs text-slate-500 font-mono">{(qaState.codeContext.length / 1024).toFixed(1)} KB Source Code</span>
                     </div>
@@ -147,26 +126,26 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
               <div className="flex-1 flex flex-col justify-center gap-6 max-w-sm mx-auto w-full">
                 {/* ... Connection UI (Same as before) ... */}
                 <div className="text-center mb-4">
-                    <h2 className="text-xl font-semibold text-white">Connect Source Code</h2>
-                    <p className="text-slate-500 text-sm mt-1">Select a method to import your project</p>
+                    <h2 className="text-xl font-semibold text-white">เชื่อมต่อ Source Code</h2>
+                    <p className="text-slate-500 text-sm mt-1">เลือกวิธีการเพื่อนำเข้าโปรเจกต์ของคุณ</p>
                 </div>
 
                 {!ghState.isTokenMode ? (
                   <div className="space-y-4">
                      <button onClick={() => ghActions.setIsTokenMode(true)} className="w-full bg-[#24292f] hover:bg-[#2b3137] text-white py-3 px-4 rounded-xl flex items-center justify-center gap-3 font-medium transition-all shadow-lg group">
                         <Github className="w-5 h-5 group-hover:scale-110 transition-transform" /> 
-                        <span>Connect with GitHub Token</span>
+                        <span>เข้าสู่ระบบด้วย GitHub Token</span>
                      </button>
                   </div>
                 ) : (
                   <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50 space-y-5 animate-fadeIn">
                      <div className="flex items-center justify-between border-b border-slate-700/50 pb-3">
                          <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Key className="w-4 h-4 text-yellow-500" /> Access Token</h3>
-                         <button onClick={() => ghActions.setIsTokenMode(false)} className="text-xs text-slate-500 hover:text-slate-300">Back</button>
+                         <button onClick={() => ghActions.setIsTokenMode(false)} className="text-xs text-slate-500 hover:text-slate-300">ย้อนกลับ</button>
                      </div>
                      <div className="space-y-2">
                         <button onClick={openGitHubTokenPage} className="w-full flex items-center justify-between bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-slate-500 text-slate-300 px-3 py-2 rounded text-xs transition-colors group">
-                            <span className="flex items-center gap-2"><Github className="w-3.5 h-3.5"/> Create Token on GitHub</span>
+                            <span className="flex items-center gap-2"><Github className="w-3.5 h-3.5"/> สร้าง Token บน GitHub</span>
                             <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100" />
                         </button>
                      </div>
@@ -177,7 +156,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                         </div>
                      </div>
                      <button onClick={ghActions.connect} disabled={ghState.isLoading || !ghState.githubToken} className="w-full bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2 mt-2 shadow-lg shadow-green-900/20">
-                        {ghState.isLoading ? <RotateCw className="w-4 h-4 animate-spin" /> : 'Connect & Analyze'}
+                        {ghState.isLoading ? <RotateCw className="w-4 h-4 animate-spin" /> : 'เชื่อมต่อ & วิเคราะห์'}
                     </button>
                   </div>
                 )}
@@ -188,17 +167,17 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800">
                         <div className="flex items-center gap-2">
                             <div className="bg-green-500/10 p-1.5 rounded-full"><CheckCheck className="w-4 h-4 text-green-400" /></div>
-                            <span className="text-slate-200 font-medium text-sm">Select Repository to Scan</span>
+                            <span className="text-slate-200 font-medium text-sm">เลือก Repository ที่ต้องการสแกน</span>
                         </div>
-                        <button onClick={ghActions.disconnect} className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 transition-colors"><LogOut className="w-3 h-3" /> Sign out</button>
+                        <button onClick={ghActions.disconnect} className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 transition-colors"><LogOut className="w-3 h-3" /> ออกจากระบบ</button>
                     </div>
 
                     <div className="flex-1 min-h-0 bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden flex flex-col relative">
                         {ghState.isLoading || qaState.workflowStep === 'ANALYZING' ? (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 z-20 backdrop-blur-sm">
                                 <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
-                                <div className="text-white font-medium mb-1">{ghState.loadingMessage || 'System Processing...'}</div>
-                                <div className="text-slate-500 text-xs">This may take a moment based on repo size</div>
+                                <div className="text-white font-medium mb-1">{ghState.loadingMessage || 'กำลังประมวลผลระบบ...'}</div>
+                                <div className="text-slate-500 text-xs">อาจใช้เวลาสักครู่ ขึ้นอยู่กับขนาดของ Repo</div>
                             </div>
                         ) : null}
 
@@ -208,10 +187,10 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ gh, onProceed, qa }) =>
                                     <div className={`p-1.5 rounded-lg ${repo.private ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-400'}`}>{repo.private ? <Lock className="w-4 h-4" /> : <Folder className="w-4 h-4" />}</div>
                                     <div className="min-w-0 flex-1">
                                         <div className="text-sm text-slate-200 font-medium truncate group-hover:text-blue-400 transition-colors">{repo.full_name}</div>
-                                        <div className="text-[10px] text-slate-500 truncate">{repo.description || 'No description'}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">{repo.description || 'ไม่มีรายละเอียด'}</div>
                                     </div>
                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white text-[10px] px-2 py-1 rounded">
-                                        Scan
+                                        สแกนเลย
                                     </div>
                                 </button>
                             ))}

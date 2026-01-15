@@ -18,7 +18,7 @@ const getAI = () => {
 export const analyzeCode = async (code: string): Promise<string> => {
   const ai = getAI();
   const prompt = `
-    Role: Senior Software Architect.
+    Role: Senior Software Architect (Thai Language).
     Task: Analyze the provided code to create a "Structural Summary".
     
     Goal:
@@ -31,6 +31,7 @@ export const analyzeCode = async (code: string): Promise<string> => {
     
     Output Format:
     - Markdown formatted.
+    - **LANGUAGE: THAI ONLY** (Use English for technical terms/variable names where appropriate).
     - Concise but technical.
   `;
 
@@ -39,7 +40,7 @@ export const analyzeCode = async (code: string): Promise<string> => {
     contents: prompt,
   });
 
-  return response.text || "Failed to analyze code.";
+  return response.text || "ไม่สามารถวิเคราะห์โค้ดได้";
 };
 
 /**
@@ -49,7 +50,7 @@ export const analyzeCode = async (code: string): Promise<string> => {
 export const createTestPlan = async (code: string, summary: string, currentReport: string): Promise<Task[]> => {
   const ai = getAI();
   const prompt = `
-    Role: QA Lead.
+    Role: QA Lead (Thai Language).
     Task: Create granular test tasks.
     
     Context:
@@ -66,7 +67,7 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
 
     Format:
     [
-      { "id": "task_id", "description": "Test requirement X", "expectedResult": "Y" }
+      { "id": "task_id", "description": "Test requirement X (In Thai)", "expectedResult": "Y (In Thai)" }
     ]
 
     Code (Reference):
@@ -96,7 +97,7 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
   const ai = getAI();
   
   const prompt = `
-    Role: QA Tester.
+    Role: QA Tester (Thai Language).
     Task: Execute Mental Simulation for Task: "${task.description}".
     
     History (Progress Report):
@@ -112,9 +113,10 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
     2. Simulate inputs/execution flow.
     3. Check against Expected Result.
     4. If it fails, explain WHY specifically (Logic error? Syntax? Missing handling?).
+    5. **Response MUST be in THAI**.
 
     Output JSON:
-    { "passed": boolean, "reason": "Technical explanation" }
+    { "passed": boolean, "reason": "Technical explanation in Thai" }
   `;
 
   const response = await ai.models.generateContent({
@@ -126,7 +128,7 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
   try {
     return JSON.parse(response.text || '{ "passed": false, "reason": "AI Error" }');
   } catch (e) {
-    return { passed: false, reason: "Failed to parse AI test execution result." };
+    return { passed: false, reason: "ไม่สามารถประมวลผลการทดสอบได้" };
   }
 };
 
@@ -137,7 +139,7 @@ export const executeTestSimulation = async (code: string, task: Task, currentRep
 export const generateFix = async (code: string, task: Task, currentReport: string): Promise<string> => {
   const ai = getAI();
   const prompt = `
-    Role: Senior Developer (Fixer).
+    Role: Senior Developer (Fixer) (Thai Language).
     Task: Fix the code based on the FAILED test result.
     
     Failed Task: ${task.description}
@@ -152,7 +154,7 @@ export const generateFix = async (code: string, task: Task, currentReport: strin
     Instructions:
     - Return ONLY the corrected code snippet/function.
     - Do not break other parts of the app (Regression awareness).
-    - Add comments explaining the fix.
+    - Add comments explaining the fix in Thai.
   `;
 
   const response = await ai.models.generateContent({
@@ -160,5 +162,5 @@ export const generateFix = async (code: string, task: Task, currentReport: strin
     contents: prompt,
   });
 
-  return response.text || "// Failed to generate fix.";
+  return response.text || "// ไม่สามารถสร้าง Code แก้ไขได้";
 };
