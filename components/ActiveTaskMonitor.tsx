@@ -14,8 +14,10 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks, githubToke
   const activeTask = tasks.find(t => t.status === TaskStatus.RUNNING);
   const lastFailed = tasks.filter(t => t.status === TaskStatus.FAILED).pop();
   const lastPassed = tasks.filter(t => t.status === TaskStatus.PASSED).pop();
+  const firstPending = tasks.find(t => t.status === TaskStatus.PENDING);
   
-  const displayTask = activeTask || lastFailed || lastPassed;
+  // Prioritize active, then failures, then passes, then pending (for resume state)
+  const displayTask = activeTask || lastFailed || lastPassed || firstPending;
 
   const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,9 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks, githubToke
         // Defensive Check: Filter out undefined logs immediately
         const safeLogs = displayTask.executionLogs.filter(l => typeof l === 'string');
         setConsoleOutput(safeLogs.map(l => `> ${l}`));
+    } 
+    else if (displayTask.status === TaskStatus.PENDING) {
+        setConsoleOutput([`> Status: READY`, `> Waiting for execution trigger...`]);
     }
   }, [displayTask]);
 
@@ -74,6 +79,7 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks, githubToke
   const isRunning = displayTask.status === TaskStatus.RUNNING;
   const isFailed = displayTask.status === TaskStatus.FAILED;
   const isPassed = displayTask.status === TaskStatus.PASSED;
+  const isPending = displayTask.status === TaskStatus.PENDING;
 
   return (
     <div className={`h-full flex flex-col relative overflow-hidden bg-[#050505]`}>
@@ -81,17 +87,20 @@ const ActiveTaskMonitor: React.FC<ActiveTaskMonitorProps> = ({ tasks, githubToke
         {/* Simplified Status Bar */}
         <div className={`px-3 py-1.5 border-b flex items-center justify-between ${
             isRunning ? 'border-blue-900/30 bg-blue-950/10' : 
-            isFailed ? 'border-red-900/30 bg-red-950/10' : 'border-green-900/30 bg-green-950/10'
+            isFailed ? 'border-red-900/30 bg-red-950/10' : 
+            isPassed ? 'border-green-900/30 bg-green-950/10' :
+            'border-slate-800 bg-slate-900/20'
         }`}>
             <div className="flex items-center gap-2">
                 {isRunning && <Loader2 className="w-3 h-3 animate-spin text-blue-400" />}
                 {isFailed && <Bug className="w-3 h-3 text-red-500" />}
                 {isPassed && <Check className="w-3 h-3 text-green-500" />}
+                {isPending && <PlayCircle className="w-3 h-3 text-slate-500" />}
                 
                 <span className={`text-[9px] font-bold tracking-widest uppercase font-mono ${
-                    isRunning ? 'text-blue-400' : isFailed ? 'text-red-400' : 'text-green-400'
+                    isRunning ? 'text-blue-400' : isFailed ? 'text-red-400' : isPassed ? 'text-green-400' : 'text-slate-500'
                 }`}>
-                    {isRunning ? 'EXECUTING' : isFailed ? 'FAILED' : 'PASSED'}
+                    {isRunning ? 'EXECUTING' : isFailed ? 'FAILED' : isPassed ? 'PASSED' : 'READY'}
                 </span>
             </div>
             <span className="font-mono text-[9px] text-slate-600">{displayTask.id}</span>

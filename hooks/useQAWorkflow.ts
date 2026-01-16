@@ -135,6 +135,7 @@ function reducer(state: AppState, action: Action): AppState {
                     savedState: snapshot
                 };
             } else {
+                // Should technically not happen if SAVE_TO_CATALOG called first, but safe to handle
                 newCatalog = [{
                     id: state.currentRepoName,
                     name: state.currentRepoName,
@@ -343,6 +344,9 @@ export const useQAWorkflow = () => {
               summarySnippet: summary.substring(0, 150) + "..."
           }
       });
+      // CRITICAL: Auto-save snapshot immediately after analysis
+      dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
+
       dispatch({ type: 'SET_STEP', payload: 'IDLE' }); 
     } catch (error: any) {
       reportError('GeminiService', 'Code Analysis Failed', error);
@@ -358,6 +362,9 @@ export const useQAWorkflow = () => {
       try {
         const tasks = await GeminiService.createTestPlan(state.codeContext, state.functionSummary, state.progressReport);
         dispatch({ type: 'SET_TASKS', payload: tasks });
+        // CRITICAL: Auto-save snapshot after plan creation
+        dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
+        
         addLog(AgentRole.QA_LEAD, `Plan Approved: ${tasks.length} test scenarios.`, 'success', 'GeminiService');
         await startExecution(tasks);
       } catch (error: any) {
@@ -394,10 +401,14 @@ export const useQAWorkflow = () => {
 
     if (failureCount > 0) {
       addLog(AgentRole.QA_LEAD, `${failureCount} defects detected. Engaging Fixer Agent.`, 'warning', 'Workflow');
+      // CRITICAL: Auto-save snapshot before fixing
+      dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
       startFixing();
     } else {
       addLog(AgentRole.QA_LEAD, "All Systems Green. Mission Accomplished.", 'success', 'Workflow');
       dispatch({ type: 'FINISH_PROCESSING' });
+      // CRITICAL: Auto-save snapshot after success
+      dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
     }
   };
 
@@ -427,6 +438,8 @@ export const useQAWorkflow = () => {
     if (state.currentCycle >= state.maxCycles) {
       addLog(AgentRole.QA_LEAD, "Maximum fix cycles reached.", 'error', 'Workflow');
       dispatch({ type: 'FINISH_PROCESSING' });
+      // CRITICAL: Auto-save snapshot at end of cycle
+      dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
       return;
     }
     dispatch({ type: 'SET_STEP', payload: 'REGRESSION_CHECK' });
