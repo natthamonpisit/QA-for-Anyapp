@@ -59,12 +59,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [showTokenInput, setShowTokenInput] = useState(false);
 
-  // Determine tasks to display (Live or Historical)
-  // Logic: If viewingCycle is set, use the loaded viewingCycleData (fetched from cloud)
-  // If null, use the live state.tasks
-  const displayedTasks = qaState.viewingCycle === null 
-      ? qaState.tasks 
-      : (qaState.viewingCycleData || []);
+  // --- VIEW DATA LOGIC ---
+  // If we are viewing a historical cycle, we prioritize the data from `viewingCycleData`
+  // Otherwise we use the live state.
+  
+  const isViewingHistory = qaState.viewingCycle !== null;
+  const historyData = qaState.viewingCycleData;
+
+  const displayedTasks = isViewingHistory && historyData ? historyData.tasks : qaState.tasks;
+  const displayedLogs = isViewingHistory && historyData ? historyData.logs : qaState.logs;
+  const displayedReport = isViewingHistory && historyData ? historyData.progressReport : qaState.progressReport;
 
   // Helper for tokens
   const estimatedTokens = Math.ceil(qaState.codeContext.length / 4);
@@ -223,7 +227,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
                         </button>
                     }
                  >
-                    <AgentLog logs={qaState.logs} />
+                    <AgentLog logs={displayedLogs} />
                  </Panel>
             </div>
 
@@ -236,7 +240,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
                     defaultExpanded={true}
                 >
                     <ProgressReport 
-                        report={qaState.progressReport} 
+                        report={displayedReport} 
                         onUpload={() => qaActions.handleCloudUpload(true)} 
                         cloudinaryConfig={qaState.cloudinaryConfig} 
                         onUpdateCloudConfig={qaActions.setCloudConfig} 

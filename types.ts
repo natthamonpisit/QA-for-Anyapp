@@ -59,6 +59,12 @@ export interface CycleHistoryItem {
   tasks?: Task[]; // Optional: Can be cleared from memory to save space
 }
 
+export interface ViewingCycleData {
+  tasks: Task[];
+  logs: LogEntry[];
+  progressReport: string;
+}
+
 export interface AppState {
   currentRepoName: string; 
   codeContext: string;
@@ -79,5 +85,5 @@ export interface AppState {
   // History Feature
   cycleHistory: CycleHistoryItem[];
   viewingCycle: number | null; // null = Live/Current, number = specific cycle
-  viewingCycleData: Task[] | null; // Stores the loaded tasks for the viewing cycle
+  viewingCycleData: ViewingCycleData | null; // Stores the loaded full state for the viewing cycle
 }

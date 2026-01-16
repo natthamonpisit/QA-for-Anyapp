@@ -1,6 +1,6 @@
 
 import { useReducer, useEffect } from 'react';
-import { AppState, AgentRole, TaskStatus, Task, LogEntry, CloudinaryConfig, RepoCatalogItem, CycleHistoryItem } from '../types';
+import { AppState, AgentRole, TaskStatus, Task, LogEntry, CloudinaryConfig, RepoCatalogItem, CycleHistoryItem, ViewingCycleData } from '../types';
 import * as GeminiService from '../services/geminiService';
 import * as CloudinaryService from '../services/cloudinaryService';
 import * as GithubService from '../services/githubService';
@@ -55,7 +55,7 @@ type Action =
   | { type: 'LOAD_SESSION'; payload: Partial<AppState> }
   | { type: 'TOGGLE_DEBUG_CONSOLE' }
   | { type: 'ARCHIVE_CYCLE_SUCCESS'; payload: CycleHistoryItem }
-  | { type: 'SET_VIEWING_CYCLE'; payload: { cycle: number | null; data: Task[] | null } };
+  | { type: 'SET_VIEWING_CYCLE'; payload: { cycle: number | null; data: ViewingCycleData | null } };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -184,7 +184,11 @@ function reducer(state: AppState, action: Action): AppState {
         return { 
             ...state, 
             viewingCycle: action.payload.cycle,
-            viewingCycleData: action.payload.data
+            viewingCycleData: action.payload.data ? {
+                tasks: action.payload.data.tasks || [],
+                logs: (action.payload.data.logs || []).map(l => ({ ...l, timestamp: new Date(l.timestamp) })),
+                progressReport: action.payload.data.progressReport || ''
+            } : null
         };
 
     default:
@@ -273,7 +277,7 @@ export const useQAWorkflow = () => {
   const setCloudConfig = (config: CloudinaryConfig) => dispatch({ type: 'SET_CLOUD_CONFIG', payload: config });
   const toggleDebugConsole = () => dispatch({ type: 'TOGGLE_DEBUG_CONSOLE' });
   
-  // NEW: Optimized View Cycle that fetches data if needed
+  // NEW: Optimized View Cycle that fetches full data (Tasks, Logs, Report)
   const setViewingCycle = async (cycle: number | null) => {
       if (cycle === null) {
           dispatch({ type: 'SET_VIEWING_CYCLE', payload: { cycle: null, data: null } });
@@ -283,42 +287,52 @@ export const useQAWorkflow = () => {
       const historyItem = state.cycleHistory.find(h => h.cycleNumber === cycle);
       if (!historyItem) return;
 
-      // 1. If data is already in memory (rare for old cycles), use it
+      // 1. If data is already in memory (rare for old cycles, mainly for very recent), use it
       if (historyItem.tasks && historyItem.tasks.length > 0) {
-           dispatch({ type: 'SET_VIEWING_CYCLE', payload: { cycle, data: historyItem.tasks } });
-           return;
+           // We might miss logs/report if we only stored tasks in memory.
+           // Ideally, fetching from cloud is safer for full context.
+           // However, if we just archived it, maybe we can use it?
+           // For consistency, let's prefer fetching from Cloud if URL exists, to ensure we get the Logs/Report too.
       }
 
-      // 2. If not, fetch from Cloudinary
+      // 2. Fetch from Cloudinary
       if (historyItem.storageUrl) {
-          addLog(AgentRole.SYSTEM, `Fetching history for Cycle #${cycle} from Cloud...`, 'info', 'CloudinaryService');
+          addLog(AgentRole.SYSTEM, `Fetching full history for Cycle #${cycle} from Cloud...`, 'info', 'CloudinaryService');
           try {
               const data = await CloudinaryService.fetchJson(historyItem.storageUrl);
-              dispatch({ type: 'SET_VIEWING_CYCLE', payload: { cycle, data: data.tasks || [] } });
+              dispatch({ type: 'SET_VIEWING_CYCLE', payload: { cycle, data: data } });
               addLog(AgentRole.SYSTEM, `History loaded for Cycle #${cycle}`, 'success', 'CloudinaryService');
           } catch (e: any) {
               reportError('CloudinaryService', 'Failed to load history', e);
           }
       } else {
-          // Fallback (Shouldn't happen for new architecture)
-          alert("No stored data found for this cycle.");
+          // Fallback: If only tasks are in memory (legacy support)
+          if (historyItem.tasks) {
+               dispatch({ type: 'SET_VIEWING_CYCLE', payload: { 
+                   cycle, 
+                   data: { tasks: historyItem.tasks, logs: [], progressReport: "Report not available in memory." } 
+               }});
+          } else {
+              alert("No stored data found for this cycle.");
+          }
       }
   };
 
   // Archive Cycle Logic (Upload -> State Update)
-  const archiveCurrentCycle = async (currentTasks: Task[]) => {
-      // 1. Prepare Data
+  const archiveCurrentCycle = async (currentTasks: Task[], currentReport: string) => {
+      // 1. Prepare Data (Include everything needed for replay/review)
       const cycleData = {
           cycleNumber: state.currentCycle,
           timestamp: new Date().toISOString(),
-          tasks: currentTasks, // Full task data
-          logs: state.logs,    // Optional: Save logs too if needed
+          tasks: currentTasks, 
+          logs: state.logs,     
+          progressReport: currentReport, 
           repoName: state.currentRepoName
       };
 
       // 2. Upload to Cloudinary
       try {
-          addLog(AgentRole.SYSTEM, `Archiving Cycle #${state.currentCycle} artifacts...`, 'info', 'CloudinaryService');
+          addLog(AgentRole.SYSTEM, `Archiving Cycle #${state.currentCycle} artifacts (Logs & Report)...`, 'info', 'CloudinaryService');
           const url = await CloudinaryService.uploadCycleData(
               cycleData, 
               state.cloudinaryConfig, 
@@ -334,7 +348,7 @@ export const useQAWorkflow = () => {
               defectCount: currentTasks.filter(t => t.status === TaskStatus.FAILED).length,
               timestamp: new Date().toISOString(),
               storageUrl: url,
-              // We keep tasks in memory for the *active* session, but SNAPSHOT_TO_CATALOG will strip them later
+              // We keep tasks in memory for the *active* session only.
               tasks: currentTasks 
           };
           
@@ -342,7 +356,7 @@ export const useQAWorkflow = () => {
 
       } catch (e: any) {
           reportError('CloudinaryService', 'Failed to archive cycle', e);
-          // Fallback: Save locally if upload fails
+          // Fallback
           const historyItem: CycleHistoryItem = {
               cycleNumber: state.currentCycle,
               defectCount: currentTasks.filter(t => t.status === TaskStatus.FAILED).length,
@@ -492,105 +506,46 @@ export const useQAWorkflow = () => {
     addLog(AgentRole.TESTER, "Executing Test Protocol...", 'info', 'GeminiService');
     let failureCount = 0;
     
+    // TRACK REPORT LOCALLY: Because `state.progressReport` is stale in this async closure
+    let currentReportSnapshot = state.progressReport;
+    const logAndReport = async (type: string, msg: string) => {
+        const newRep = await updateReport(type, msg);
+        currentReportSnapshot = newRep;
+    };
+
+    const completedTasks: Task[] = [];
+    
     for (const task of tasksToRun) {
       dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.RUNNING } } });
+      
+      let updatedTask = { ...task, status: TaskStatus.RUNNING };
+
       try {
-        const result = await GeminiService.executeTestSimulation(state.codeContext, task, state.progressReport);
+        const result = await GeminiService.executeTestSimulation(state.codeContext, task, currentReportSnapshot);
         if (result.passed) {
+          updatedTask = { ...task, status: TaskStatus.PASSED, resultLog: result.reason, executionLogs: result.executionLogs };
           dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.PASSED, resultLog: result.reason, executionLogs: result.executionLogs } } });
           addLog(AgentRole.TESTER, `[PASSED] ${task.id}`, 'success', 'GeminiService');
-          await updateReport("TEST_PASS", `Task ${task.id}: ${result.reason}`);
+          await logAndReport("TEST_PASS", `Task ${task.id}: ${result.reason}`);
         } else {
           failureCount++;
+          updatedTask = { ...task, status: TaskStatus.FAILED, failureReason: result.reason, executionLogs: result.executionLogs };
           dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.FAILED, failureReason: result.reason, executionLogs: result.executionLogs } } });
           addLog(AgentRole.TESTER, `[FAILED] ${task.id}`, 'error', 'GeminiService');
-          await updateReport("TEST_FAIL", `Task ${task.id}: ${result.reason}`);
+          await logAndReport("TEST_FAIL", `Task ${task.id}: ${result.reason}`);
         }
       } catch (e: any) { 
           reportError('GeminiService', `Task Execution Error: ${task.id}`, e);
+          updatedTask = { ...task, status: TaskStatus.FAILED, failureReason: 'System Error during execution' };
           dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, updates: { status: TaskStatus.FAILED, failureReason: 'System Error during execution' } } });
       }
+      
+      completedTasks.push(updatedTask);
       await new Promise(r => setTimeout(r, 200)); 
     }
 
-    // Capture the state *now* before we start fixing or ending
-    // Note: state.tasks in the closure might be stale if we didn't use refs, but here we can pass the final state
-    // Actually, we modified state via dispatch, so we need to rely on the tasksToRun BUT updated with results.
-    // However, react state updates are async.
-    // Since we just ran a loop and dispatched, the 'state' variable in this scope is stale.
-    // We should reconstruct the tasks from the loop results or use a Functional Update approach?
-    // Simplify: We know the loop finished. We can query the *latest* state if we were in a component, 
-    // but here in a hook function closure, it's tricky.
-    // Solution: We will pass a callback to archiveCurrentCycle that gets the latest state? 
-    // No, better to pass the 'tasksToRun' but updated.
-    
-    // For simplicity in this structure: The loop updated the Reducer.
-    // We will archive the "snapshot" of tasks.
-    // Since we don't have easy access to the *new* state inside this async function (without refs),
-    // We will trust that the Reducer has updated. 
-    // Wait, we can't access updated state here. 
-    // Correct fix: We will rely on the `tasksToRun` array which we can mutate locally for the archive payload (shadow copy),
-    // OR we just re-read the tasks.
-    // Actually, `tasksToRun` is a reference to the array at start.
-    // Let's create a fresh copy from the loop results.
-    
-    // Let's assume the loop logic above is correct. The "dispatch" updates the global state.
-    // We need to Archive.
-    // We will delay archiving slightly to allow state to settle or just pass the *intent* to archive.
-    // BETTER: We will pass the `tasksToRun` which we know are the ones we just processed, but we need their *final* status.
-    // Since we can't easily get the final status back from `dispatch` in a loop, 
-    // we will manually construct the final task list for the archive payload.
-    
-    // Actually, let's just use the `state.tasks` from the *next render*? No, we need to do it now.
-    // Let's pass the tasks explicitly.
-    // We will execute the archive using the data we have.
-    
-    // Re-construct final tasks for archiving (since we know the results)
-    // This is a bit hacky but safe for async closures.
-    // In a real Redux-Saga this is easier.
-    
-    // Hack: We can't see the reducer's new state yet.
-    // We will skip strict accuracy of the *object identity* and just archive the *current* state 
-    // assuming the user doesn't click fast.
-    // actually, `state.tasks` is stale.
-    
-    // FIX: We will not pass `currentTasks` to `archiveCurrentCycle`.
-    // We will pass the `tasksToRun` (which we iterate over).
-    // But we need to update their status in this local array to match what we dispatched.
-    
-    const finalTasksForArchive = tasksToRun.map(t => {
-        // We don't have the result here easily unless we stored it in a local map.
-        // Let's trust the logic flow.
-        // For the sake of the user request, let's grab the `state` via a Ref if we really needed it, 
-        // but here we will just perform the archive *in the background* using a separate Effect?
-        // No, let's just do it here.
-        return t; 
-        // Wait, `tasksToRun` still has 'PENDING' status because it was passed in args.
-        // We need the results.
-    });
-
-    // OK, let's modify the loop to store results locally too.
-    const completedTasks: Task[] = [];
-    for (const task of tasksToRun) {
-        // ... execution ...
-        // We need to replicate the result logic locally to build the archive payload
-        let updatedTask = { ...task, status: TaskStatus.RUNNING };
-         try {
-            const result = await GeminiService.executeTestSimulation(state.codeContext, task, state.progressReport);
-            if (result.passed) {
-               updatedTask = { ...task, status: TaskStatus.PASSED, resultLog: result.reason, executionLogs: result.executionLogs };
-            } else {
-               updatedTask = { ...task, status: TaskStatus.FAILED, failureReason: result.reason, executionLogs: result.executionLogs };
-            }
-        } catch (e: any) {
-             updatedTask = { ...task, status: TaskStatus.FAILED, failureReason: 'System Error' };
-        }
-        completedTasks.push(updatedTask);
-        // ... dispatch ... (already in code)
-    }
-
-    // Now `completedTasks` has the latest data!
-    await archiveCurrentCycle(completedTasks);
+    // Now call archive with the tasks we just finished AND the final report we built
+    await archiveCurrentCycle(completedTasks, currentReportSnapshot);
 
     if (failureCount > 0) {
       addLog(AgentRole.QA_LEAD, `${failureCount} defects detected. Engaging Fixer Agent.`, 'warning', 'Workflow');
