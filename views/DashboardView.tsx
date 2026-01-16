@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search, LogOut, Save, Check, Github, X, ChevronDown, ChevronUp, LayoutDashboard, Maximize2, Minimize2, Terminal } from 'lucide-react';
+import { Home, Trash2, RotateCw, Play, FileCode, Bug, Search, LogOut, Save, Check, Github, X, ChevronDown, ChevronUp, LayoutDashboard, Maximize2, Minimize2, Terminal, Info } from 'lucide-react';
 import DashboardStats from '../components/DashboardStats';
 import TaskList from '../components/TaskList';
 import ActiveTaskMonitor from '../components/ActiveTaskMonitor';
@@ -58,6 +58,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
   const { state: ghState, actions: ghActions } = gh;
   const [isSaved, setIsSaved] = useState(false);
   const [showTokenInput, setShowTokenInput] = useState(false);
+
+  // Determine tasks to display (Live or Historical)
+  const displayedTasks = qaState.viewingCycle === null 
+      ? qaState.tasks 
+      : (qaState.cycleHistory.find((c: any) => c.cycleNumber === qaState.viewingCycle)?.tasks || []);
 
   // Helper for tokens
   const estimatedTokens = Math.ceil(qaState.codeContext.length / 4);
@@ -141,7 +146,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
               <Terminal className="w-3.5 h-3.5" />
            </button>
 
-          <button onClick={qaActions.startMission} disabled={qaState.isProcessing || !process.env.API_KEY} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide transition-all shadow-lg ${qaState.isProcessing ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}>
+          <button 
+            onClick={qaActions.startMission} 
+            disabled={qaState.isProcessing || !process.env.API_KEY || qaState.viewingCycle !== null} 
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide transition-all shadow-lg ${qaState.isProcessing || qaState.viewingCycle !== null ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+          >
             {qaState.isProcessing ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
             {qaState.isProcessing ? 'Running...' : 'Start QA'}
           </button>
@@ -153,16 +162,31 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
         
         {/* Stats Row */}
         <div className="shrink-0">
-            <DashboardStats tasks={qaState.tasks} currentCycle={qaState.currentCycle} />
+            <DashboardStats 
+                tasks={displayedTasks} 
+                currentCycle={qaState.currentCycle}
+                cycleHistory={qaState.cycleHistory}
+                viewingCycle={qaState.viewingCycle}
+                onSelectCycle={qaActions.setViewingCycle}
+            />
         </div>
+
+        {/* Viewing History Banner */}
+        {qaState.viewingCycle !== null && (
+            <div className="bg-yellow-900/20 border border-yellow-900/50 text-yellow-500 text-xs px-3 py-2 rounded flex items-center gap-2 animate-fadeIn">
+                <Info className="w-4 h-4" />
+                <span>You are viewing a historical record of Cycle #{qaState.viewingCycle}. Return to "Current" to execute new tasks.</span>
+                <button onClick={() => qaActions.setViewingCycle(null)} className="ml-auto underline hover:text-white">Return to Live View</button>
+            </div>
+        )}
 
         {/* Bento Grid Layout */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-4 lg:grid-cols-12 gap-4 min-h-0">
             
             {/* Col 1: Task List (Left) */}
             <div className="md:col-span-2 lg:col-span-3 flex flex-col gap-4 min-h-0">
-                <Panel title="Test Plan" className="flex-1" defaultExpanded={true}>
-                    <TaskList tasks={qaState.tasks} />
+                <Panel title={qaState.viewingCycle !== null ? `Plan (Cycle #${qaState.viewingCycle})` : "Current Test Plan"} className="flex-1" defaultExpanded={true}>
+                    <TaskList tasks={displayedTasks} />
                 </Panel>
             </div>
 
@@ -173,14 +197,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
                     title={
                         <span className="flex items-center gap-2">
                            Simulation Runtime 
-                           {qaState.isProcessing && <span className="flex w-2 h-2 rounded-full bg-red-500 animate-pulse"/>}
+                           {qaState.isProcessing && qaState.viewingCycle === null && <span className="flex w-2 h-2 rounded-full bg-red-500 animate-pulse"/>}
                         </span>
                     }
                     className="flex-[2]" 
                     defaultExpanded={true}
                  >
                     <ActiveTaskMonitor 
-                        tasks={qaState.tasks} 
+                        tasks={displayedTasks} 
                         githubToken={ghState.githubToken}
                         onApplyFix={(taskId) => qaActions.applyFixAndPR(taskId, ghState.githubToken)}
                     />

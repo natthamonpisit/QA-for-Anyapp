@@ -1,6 +1,6 @@
 
 import { useReducer, useEffect } from 'react';
-import { AppState, AgentRole, TaskStatus, Task, LogEntry, CloudinaryConfig, RepoCatalogItem } from '../types';
+import { AppState, AgentRole, TaskStatus, Task, LogEntry, CloudinaryConfig, RepoCatalogItem, CycleHistoryItem } from '../types';
 import * as GeminiService from '../services/geminiService';
 import * as CloudinaryService from '../services/cloudinaryService';
 import * as GithubService from '../services/githubService';
@@ -25,7 +25,9 @@ const defaultState: AppState = {
   },
   sessionId: `${CONFIG.DEFAULT_SESSION_ID_PREFIX}${Date.now()}`,
   repoCatalog: [],
-  showDebugConsole: false
+  showDebugConsole: false,
+  cycleHistory: [],
+  viewingCycle: null
 };
 
 // --- Reducer ---
@@ -50,7 +52,9 @@ type Action =
   | { type: 'SAVE_TO_CATALOG'; payload: RepoCatalogItem }
   | { type: 'SNAPSHOT_TO_CATALOG' } 
   | { type: 'LOAD_SESSION'; payload: Partial<AppState> }
-  | { type: 'TOGGLE_DEBUG_CONSOLE' };
+  | { type: 'TOGGLE_DEBUG_CONSOLE' }
+  | { type: 'ARCHIVE_CYCLE' }
+  | { type: 'SET_VIEWING_CYCLE'; payload: number | null };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -87,7 +91,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'INCREMENT_CYCLE':
       return { ...state, currentCycle: state.currentCycle + 1 };
     case 'RESET_CYCLE':
-      return { ...state, currentCycle: 0, tasks: [], logs: [], progressReport: defaultState.progressReport, workflowStep: 'IDLE' };
+      return { ...state, currentCycle: 0, tasks: [], logs: [], progressReport: defaultState.progressReport, workflowStep: 'IDLE', cycleHistory: [] };
     case 'FINISH_PROCESSING':
       return { ...state, isProcessing: false, workflowStep: 'COMPLETED' };
     case 'SET_VIEW':
@@ -125,6 +129,7 @@ function reducer(state: AppState, action: Action): AppState {
                 currentCycle: state.currentCycle,
                 workflowStep: state.workflowStep,
                 currentRepoName: state.currentRepoName,
+                cycleHistory: state.cycleHistory
             };
             const existingIndex = state.repoCatalog.findIndex(item => item.id === state.currentRepoName);
             let newCatalog = [...state.repoCatalog];
@@ -135,7 +140,6 @@ function reducer(state: AppState, action: Action): AppState {
                     savedState: snapshot
                 };
             } else {
-                // Should technically not happen if SAVE_TO_CATALOG called first, but safe to handle
                 newCatalog = [{
                     id: state.currentRepoName,
                     name: state.currentRepoName,
@@ -153,12 +157,29 @@ function reducer(state: AppState, action: Action): AppState {
             ...action.payload,
             isProcessing: false,
             workflowStep: action.payload.workflowStep === 'TESTING' || action.payload.workflowStep === 'FIXING' ? 'IDLE' : (action.payload.workflowStep || 'IDLE'),
-            logs: (action.payload.logs || []).map(l => ({ ...l, timestamp: new Date(l.timestamp) }))
+            logs: (action.payload.logs || []).map(l => ({ ...l, timestamp: new Date(l.timestamp) })),
+            cycleHistory: action.payload.cycleHistory || []
         };
     case 'RESTORE_STATE':
         return action.payload;
     case 'TOGGLE_DEBUG_CONSOLE':
         return { ...state, showDebugConsole: !state.showDebugConsole };
+    
+    case 'ARCHIVE_CYCLE':
+        {
+            // Avoid duplicates
+            if (state.cycleHistory.some(c => c.cycleNumber === state.currentCycle)) return state;
+            const historyItem: CycleHistoryItem = {
+                cycleNumber: state.currentCycle,
+                tasks: JSON.parse(JSON.stringify(state.tasks)), // Deep copy to prevent ref issues
+                defectCount: state.tasks.filter(t => t.status === TaskStatus.FAILED).length,
+                timestamp: new Date().toISOString()
+            };
+            return { ...state, cycleHistory: [...state.cycleHistory, historyItem] };
+        }
+    case 'SET_VIEWING_CYCLE':
+        return { ...state, viewingCycle: action.payload };
+
     default:
       return state;
   }
@@ -236,6 +257,7 @@ export const useQAWorkflow = () => {
   const setView = (view: AppState['currentView']) => dispatch({ type: 'SET_VIEW', payload: view });
   const setCloudConfig = (config: CloudinaryConfig) => dispatch({ type: 'SET_CLOUD_CONFIG', payload: config });
   const toggleDebugConsole = () => dispatch({ type: 'TOGGLE_DEBUG_CONSOLE' });
+  const setViewingCycle = (cycle: number | null) => dispatch({ type: 'SET_VIEWING_CYCLE', payload: cycle });
   
   const handleCloudUpload = async (manual: boolean = false, currentReportContent?: string) => {
       const content = currentReportContent || state.progressReport;
@@ -344,7 +366,6 @@ export const useQAWorkflow = () => {
               summarySnippet: summary.substring(0, 150) + "..."
           }
       });
-      // CRITICAL: Auto-save snapshot immediately after analysis
       dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
 
       dispatch({ type: 'SET_STEP', payload: 'IDLE' }); 
@@ -362,7 +383,6 @@ export const useQAWorkflow = () => {
       try {
         const tasks = await GeminiService.createTestPlan(state.codeContext, state.functionSummary, state.progressReport);
         dispatch({ type: 'SET_TASKS', payload: tasks });
-        // CRITICAL: Auto-save snapshot after plan creation
         dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
         
         addLog(AgentRole.QA_LEAD, `Plan Approved: ${tasks.length} test scenarios.`, 'success', 'GeminiService');
@@ -399,15 +419,16 @@ export const useQAWorkflow = () => {
       await new Promise(r => setTimeout(r, 200)); 
     }
 
+    // Archive this run results before deciding next steps
+    dispatch({ type: 'ARCHIVE_CYCLE' });
+
     if (failureCount > 0) {
       addLog(AgentRole.QA_LEAD, `${failureCount} defects detected. Engaging Fixer Agent.`, 'warning', 'Workflow');
-      // CRITICAL: Auto-save snapshot before fixing
       dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
       startFixing();
     } else {
       addLog(AgentRole.QA_LEAD, "All Systems Green. Mission Accomplished.", 'success', 'Workflow');
       dispatch({ type: 'FINISH_PROCESSING' });
-      // CRITICAL: Auto-save snapshot after success
       dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
     }
   };
@@ -438,7 +459,6 @@ export const useQAWorkflow = () => {
     if (state.currentCycle >= state.maxCycles) {
       addLog(AgentRole.QA_LEAD, "Maximum fix cycles reached.", 'error', 'Workflow');
       dispatch({ type: 'FINISH_PROCESSING' });
-      // CRITICAL: Auto-save snapshot at end of cycle
       dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
       return;
     }
@@ -456,7 +476,7 @@ export const useQAWorkflow = () => {
     actions: {
       clearSession, saveProject, loadSession, setRepoContext, setCode, appendCode, setView, setCloudConfig,
       handleCloudUpload, handleLogUpload, startAnalysis, startMission, 
-      applyFixAndPR, toggleDebugConsole, clearLogs
+      applyFixAndPR, toggleDebugConsole, clearLogs, setViewingCycle
     }
   };
 };

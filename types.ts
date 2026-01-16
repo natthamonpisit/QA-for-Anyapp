@@ -51,6 +51,13 @@ export interface RepoCatalogItem {
   savedState?: Partial<AppState>; 
 }
 
+export interface CycleHistoryItem {
+  cycleNumber: number;
+  tasks: Task[];
+  defectCount: number;
+  timestamp: string;
+}
+
 export interface AppState {
   currentRepoName: string; 
   codeContext: string;
@@ -67,4 +74,8 @@ export interface AppState {
   sessionId: string; 
   repoCatalog: RepoCatalogItem[]; 
   showDebugConsole: boolean; // New: Toggle for Debug Console
+  
+  // History Feature
+  cycleHistory: CycleHistoryItem[];
+  viewingCycle: number | null; // null = Live/Current, number = specific cycle
 }
