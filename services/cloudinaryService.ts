@@ -11,7 +11,8 @@ export const uploadFile = async (
   content: string, 
   config: CloudinaryConfig, 
   filename: string, 
-  mimeType: string = 'text/plain'
+  mimeType: string = 'text/plain',
+  folder?: string
 ): Promise<string> => {
   if (!config.cloudName || !config.uploadPreset) {
     throw new Error("Missing Cloudinary Configuration");
@@ -28,8 +29,14 @@ export const uploadFile = async (
   formData.append('upload_preset', config.uploadPreset);
   formData.append('resource_type', 'raw'); // 'raw' is best for text/md/json files
   
-  // Note: We don't force public_id here to allow Cloudinary to handle duplicates or versioning
-  // unless we specifically want to overwrite. For logs, unique timestamps are better.
+  // Use public_id with slashes to simulate folders
+  // e.g. "QA_LOGS/2023-10-27/RepoName/filename"
+  if (folder) {
+      // Clean repo name for URL safety
+      const safeFolder = folder.replace(/[^a-zA-Z0-9-_/]/g, '_');
+      const safeFilename = filename.replace(/\.[^/.]+$/, ""); // Remove extension for public_id
+      formData.append('public_id', `${safeFolder}/${safeFilename}`);
+  }
 
   try {
     const response = await fetch(url, {
@@ -54,4 +61,36 @@ export const uploadFile = async (
 export const uploadReport = async (content: string, config: CloudinaryConfig, publicId?: string): Promise<string> => {
     const filename = publicId ? `${publicId}.md` : `qa_report_${Date.now()}.md`;
     return uploadFile(content, config, filename, 'text/markdown');
+};
+
+/**
+ * Specific function to save Cycle Data as JSON with Folder Structure
+ * Folder: QA_LOGS / YYYY-MM-DD / Repo_Name / Cycle_X.json
+ */
+export const uploadCycleData = async (
+    data: any, 
+    config: CloudinaryConfig, 
+    repoName: string, 
+    cycleNumber: number
+): Promise<string> => {
+    const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const folder = `QA_LOGS/${dateStr}/${repoName}`;
+    const filename = `Cycle_${cycleNumber}.json`;
+    const content = JSON.stringify(data, null, 2);
+    
+    return uploadFile(content, config, filename, 'application/json', folder);
+};
+
+/**
+ * Fetch JSON data back from Cloudinary
+ */
+export const fetchJson = async (url: string): Promise<any> => {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch JSON data");
+        return await response.json();
+    } catch (error) {
+        console.error("Fetch JSON Error:", error);
+        throw error;
+    }
 };

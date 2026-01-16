@@ -53,9 +53,10 @@ export interface RepoCatalogItem {
 
 export interface CycleHistoryItem {
   cycleNumber: number;
-  tasks: Task[];
   defectCount: number;
   timestamp: string;
+  storageUrl?: string; // URL to the JSON file on Cloudinary
+  tasks?: Task[]; // Optional: Can be cleared from memory to save space
 }
 
 export interface AppState {
@@ -73,9 +74,10 @@ export interface AppState {
   cloudinaryConfig: CloudinaryConfig; 
   sessionId: string; 
   repoCatalog: RepoCatalogItem[]; 
-  showDebugConsole: boolean; // New: Toggle for Debug Console
+  showDebugConsole: boolean;
   
   // History Feature
   cycleHistory: CycleHistoryItem[];
   viewingCycle: number | null; // null = Live/Current, number = specific cycle
+  viewingCycleData: Task[] | null; // Stores the loaded tasks for the viewing cycle
 }

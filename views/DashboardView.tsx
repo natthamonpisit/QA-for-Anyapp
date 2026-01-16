@@ -60,9 +60,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
   const [showTokenInput, setShowTokenInput] = useState(false);
 
   // Determine tasks to display (Live or Historical)
+  // Logic: If viewingCycle is set, use the loaded viewingCycleData (fetched from cloud)
+  // If null, use the live state.tasks
   const displayedTasks = qaState.viewingCycle === null 
       ? qaState.tasks 
-      : (qaState.cycleHistory.find((c: any) => c.cycleNumber === qaState.viewingCycle)?.tasks || []);
+      : (qaState.viewingCycleData || []);
 
   // Helper for tokens
   const estimatedTokens = Math.ceil(qaState.codeContext.length / 4);
@@ -175,7 +177,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ qa, gh }) => {
         {qaState.viewingCycle !== null && (
             <div className="bg-yellow-900/20 border border-yellow-900/50 text-yellow-500 text-xs px-3 py-2 rounded flex items-center gap-2 animate-fadeIn">
                 <Info className="w-4 h-4" />
-                <span>You are viewing a historical record of Cycle #{qaState.viewingCycle}. Return to "Current" to execute new tasks.</span>
+                <span>You are viewing a historical record of Cycle #{qaState.viewingCycle} (Loaded from Cloud Archive). Return to "Current" to execute new tasks.</span>
                 <button onClick={() => qaActions.setViewingCycle(null)} className="ml-auto underline hover:text-white">Return to Live View</button>
             </div>
         )}
