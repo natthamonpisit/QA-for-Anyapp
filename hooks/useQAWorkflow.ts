@@ -489,12 +489,18 @@ export const useQAWorkflow = () => {
       addLog(AgentRole.QA_LEAD, "Mission Started. Generating Test Matrix...", 'info', 'GeminiService');
 
       try {
-        const tasks = await GeminiService.createTestPlan(state.codeContext, state.functionSummary, state.progressReport);
-        dispatch({ type: 'SET_TASKS', payload: tasks });
+        const result = await GeminiService.createTestPlan(state.codeContext, state.functionSummary, state.progressReport);
+        
+        // --- FEATURE: SHOW QA THOUGHT PROCESS ---
+        if (result.reasoning) {
+             addLog(AgentRole.QA_LEAD, `Planning Strategy: ${result.reasoning}`, 'info', 'GeminiService');
+        }
+
+        dispatch({ type: 'SET_TASKS', payload: result.tasks });
         dispatch({ type: 'SNAPSHOT_TO_CATALOG' });
         
-        addLog(AgentRole.QA_LEAD, `Plan Approved: ${tasks.length} test scenarios.`, 'success', 'GeminiService');
-        await startExecution(tasks);
+        addLog(AgentRole.QA_LEAD, `Plan Approved: ${result.tasks.length} test scenarios.`, 'success', 'GeminiService');
+        await startExecution(result.tasks);
       } catch (error: any) {
         reportError('GeminiService', 'Test Planning Failed', error);
         dispatch({ type: 'FINISH_PROCESSING' });

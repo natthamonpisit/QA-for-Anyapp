@@ -46,17 +46,20 @@ const extractRelatedCode = (fullCode: string, filePaths: string[]): string => {
 
 /**
  * 1. ARCHITECT AGENT
+ * Update: Enhanced to analyze Inputs, Outputs, Security Risks, and Error Handling.
  */
 export const analyzeCode = async (code: string): Promise<string> => {
   const ai = getAI();
   const prompt = `
     Role: Senior Software Architect (Thai Language).
-    Task: Analyze the provided code to create a "Structural Summary".
+    Task: Analyze the provided code to create a "Technical Structural Summary".
     
-    Goal:
-    - Identify key modules/functions and their dependencies.
-    - Summarize logic flow.
-    - **List all file paths found in the code.**
+    Analysis Requirements:
+    1. **Modules & Logic**: Identify key functions and dependencies.
+    2. **Data Flow**: Analyze critical INPUTS required and OUTPUTS expected.
+    3. **Risk Assessment**: Identify potential SECURITY RISKS (e.g., injection, sensitive data) or Logic Gaps.
+    4. **Negative Scenarios**: Suggest areas where invalid inputs or edge cases might break the app.
+    5. **Error Handling**: Evaluate how errors are shown to the user (User Feedback).
     
     Code:
     ${code.substring(0, 70000)} 
@@ -77,13 +80,13 @@ export const analyzeCode = async (code: string): Promise<string> => {
 
 /**
  * 2. QA LEAD AGENT (Smart Context Enabled)
- * เพิ่ม: ให้ AI ระบุ 'relatedFiles' ในแต่ละ Task
+ * Update: Returns reasoning + tasks. Explicitly requests Positive & Negative cases.
  */
-export const createTestPlan = async (code: string, summary: string, currentReport: string): Promise<Task[]> => {
+export const createTestPlan = async (code: string, summary: string, currentReport: string): Promise<{ tasks: Task[], reasoning: string }> => {
   const ai = getAI();
   const prompt = `
     Role: QA Lead (Thai Language).
-    Task: Create granular test tasks based on the summary.
+    Task: Create a comprehensive Test Matrix.
     
     Context:
     1. Code Structure Summary:
@@ -92,20 +95,26 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
     2. Previous Progress Report:
     ${currentReport}
 
-    Constraints:
-    - Break tasks into small logic units.
-    - Output JSON Array only.
-    - **CRITICAL: For each task, list the filenames (relatedFiles) that are relevant to test it.**
+    Strategy Requirements:
+    - **Mental Sandbox**: Think about how a user might misuse the app.
+    - **Test Coverage**:
+        - **Positive Cases**: Happy paths (Normal usage).
+        - **Negative Cases**: Invalid inputs, API failures, Network errors, Edge cases.
+        - **UI/UX Error States**: Verify that the user sees appropriate error messages.
+    - **Granularity**: Break tasks into small, verifiable units.
 
-    Format:
-    [
-      { 
-        "id": "task_id", 
-        "description": "Test requirement X (In Thai)", 
-        "expectedResult": "Y (In Thai)",
-        "relatedFiles": ["src/App.tsx", "utils/helper.ts"] 
-      }
-    ]
+    Output Format (JSON Object):
+    {
+      "reasoning": "Explain your testing strategy here in Thai. E.g., 'Focusing on X because Y...'",
+      "tasks": [
+        { 
+          "id": "task_id", 
+          "description": "[POSITIVE/NEGATIVE] Test requirement description (In Thai)", 
+          "expectedResult": "Detailed expected outcome including UI feedback (In Thai)",
+          "relatedFiles": ["src/App.tsx", "utils/helper.ts"] 
+        }
+      ]
+    }
   `;
 
   const response = await ai.models.generateContent({
@@ -115,17 +124,19 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
   });
 
   try {
-    const tasks = JSON.parse(response.text || "[]");
-    return tasks.map((t: any) => ({ ...t, status: 'PENDING' }));
+    const json = JSON.parse(response.text || "{}");
+    const tasks = (json.tasks || []).map((t: any) => ({ ...t, status: 'PENDING' }));
+    const reasoning = json.reasoning || "Analyzing requirements...";
+    return { tasks, reasoning };
   } catch (e) {
     console.error("Failed to parse task JSON", e);
-    return [];
+    return { tasks: [], reasoning: "Error generating plan." };
   }
 };
 
 /**
  * 3. TESTER AGENT (Uses Smart Context & Data Mocking)
- * Updated: Return 'executionLogs' array to visualize steps.
+ * Update: Instructed to log specific INPUTS and OUTPUTS.
  */
 export const executeTestSimulation = async (fullCode: string, task: Task, currentReport: string): Promise<{ passed: boolean; reason: string; executionLogs: string[] }> => {
   const ai = getAI();
@@ -146,19 +157,23 @@ export const executeTestSimulation = async (fullCode: string, task: Task, curren
     ${contextCode}
 
     Instructions:
-    1. **MOCK DATA**: If the task involves user input (e.g., uploading a file, filling a form), IMAGINE you created a valid mock object.
-    2. **SIMULATE LOGIC**: Trace the code execution flow step-by-step using these mock inputs.
-    3. **GENERATE LOGS**: Record specific technical steps you took during simulation (e.g., "Found element #btn", "Dispatched Click Event", "Received API 200").
+    1. **MOCK DATA**: Define specific MOCK INPUTS (e.g., 'User enters <script>', 'API returns 500').
+    2. **SIMULATE LOGIC**: Trace the code flow with these inputs step-by-step.
+    3. **VALIDATE OUTPUT**: Compare the virtual output with the Expected Result.
+    4. **LOGGING**: In 'executionLogs', explicitly state:
+       - "INPUT: [Value]"
+       - "ACTION: [Step]"
+       - "OBSERVED OUTPUT: [Result]"
 
     Output JSON:
     { 
       "passed": boolean, 
       "reason": "Technical explanation in Thai",
       "executionLogs": [
-         "Mocking user session...",
-         "Mounting component <App/>...",
-         "Checking condition if (loading)...",
-         "Result: Loading state visible."
+         "INPUT: username = 'test', password = ''",
+         "ACTION: Click Submit Button",
+         "OBSERVED OUTPUT: Error message 'Required' appeared.",
+         "Result: Validation logic works as expected."
       ]
     }
   `;
