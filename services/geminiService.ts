@@ -80,13 +80,13 @@ export const analyzeCode = async (code: string): Promise<string> => {
 
 /**
  * 2. QA LEAD AGENT (Smart Context Enabled)
- * Update: Returns reasoning + tasks. Explicitly requests Positive & Negative cases.
+ * Update: Returns reasoning + tasks. Enforces 5 Golden Rules & 3 Dimensions Coverage.
  */
 export const createTestPlan = async (code: string, summary: string, currentReport: string): Promise<{ tasks: Task[], reasoning: string }> => {
   const ai = getAI();
   const prompt = `
-    Role: QA Lead (Thai Language).
-    Task: Create a comprehensive Test Matrix.
+    Role: Professional QA Lead (Thai Language).
+    Task: Create a comprehensive Test Matrix adhering to strict professional standards.
     
     Context:
     1. Code Structure Summary:
@@ -95,22 +95,26 @@ export const createTestPlan = async (code: string, summary: string, currentRepor
     2. Previous Progress Report:
     ${currentReport}
 
-    Strategy Requirements:
-    - **Mental Sandbox**: Think about how a user might misuse the app.
-    - **Test Coverage**:
-        - **Positive Cases**: Happy paths (Normal usage).
-        - **Negative Cases**: Invalid inputs, API failures, Network errors, Edge cases.
-        - **UI/UX Error States**: Verify that the user sees appropriate error messages.
-    - **Granularity**: Break tasks into small, verifiable units.
+    STRICT GUIDELINES: "The 5 Golden Rules" (ต้องปฏิบัติตามอย่างเคร่งครัด):
+    1. **One Scenario = One Objective**: หนึ่งข้อ หนึ่งเป้าหมาย ห้ามเทสหลายเรื่องในข้อเดียว ถ้าซับซ้อนให้แยกข้อย่อย
+    2. **Deterministic**: ผลลัพธ์ต้องชัดเจน ไม่กำกวม วัดผลได้ (e.g., "Error 401 displayed" ไม่ใช่ "System fails")
+    3. **Independent**: แต่ละข้อต้องเป็นอิสระต่อกัน รันข้อไหนก่อนก็ได้
+    4. **End-User Perspective**: เขียนในมุม User (User Story) ว่า User อยากทำอะไร ไม่ใช่เขียนตาม Code Function
+    5. **Traceable**: ระบุได้ว่าเทสเพื่อจุดประสงค์อะไร
+
+    COVERAGE STRATEGY: "The 3 Dimensions" (ต้องมีให้ครบ):
+    1. **Positive Testing (Happy Path)**: ทางเดินปกติ User ใช้งานราบรื่น
+    2. **Negative Testing (Sad Path)**: *สำคัญมาก* ทดสอบการจัดการ Error (e.g., Password ผิด, เน็ตหลุด, Input ผิด format) ระบบต้องไม่พังและแจ้งเตือนถูกต้อง
+    3. **Boundary & Edge Cases**: ค่าสูงสุด/ต่ำสุด (Min/Max), ค่าว่าง (Null/Empty), ตัวอักษรพิเศษ, หรือ Input ที่เป็น Extreme case
 
     Output Format (JSON Object):
     {
-      "reasoning": "Explain your testing strategy here in Thai. E.g., 'Focusing on X because Y...'",
+      "reasoning": "Explain your testing strategy in Thai, explicitly mentioning how you covered the 3 Dimensions...",
       "tasks": [
         { 
           "id": "task_id", 
-          "description": "[POSITIVE/NEGATIVE] Test requirement description (In Thai)", 
-          "expectedResult": "Detailed expected outcome including UI feedback (In Thai)",
+          "description": "[POSITIVE/NEGATIVE/EDGE] <Description adhering to Golden Rules> (In Thai)", 
+          "expectedResult": "<Specific Deterministic Outcome> (In Thai)",
           "relatedFiles": ["src/App.tsx", "utils/helper.ts"] 
         }
       ]
